@@ -5,104 +5,136 @@ import bz2
 
 import numpy as np
 
+
 class NexradLevel3File():
     """
+    A Class for accessing data in NEXRAD Level III (3) files.
+
+    Attributes
+    ----------
+    text_header : dic
+        File textual header.
+    msg_header : dic
+        Message header.
+    prod_descr : dic
+        Product description.
+    symbology_header : dict
+        Symbology header.
+    packet_header : dict
+        Radial data array packet header.
+    radial_headers : list of dicts
+        List of radials headers
+    raw_data : array
+        Raw unscaled, unmasked data.
+    data : array
+        Scaled, masked radial data.
+
     """
 
     def __init__(self, filename):
-
+        """ initalize the object. """
         # read the entire file into memory
         fh = open(filename, 'rb')
-        self._buf = fh.read()
+        buf = fh.read()     # string buffer containing file data
         fh.close()
 
-        # Text header, various sizes
-        if self._buf.find('\n') == -1:
-            bpos = 0
-        else:
-            last_newline = self._buf.find('\n')
-            while self._buf.find('\n', last_newline + 1) != -1:
-                next_newline = self._buf.find('\n', last_newline + 1)
-                if next_newline - last_newline > 50:
-                    break
-                last_newline = next_newline
-            bpos = last_newline + 1
+        # Text header
+        # Format of Text header is SDUSXX KYYYY DDHHMM\r\r\nAAABBB\r\r\n
+        self.text_header = buf[:30]
+        bpos = 30       # current reading position in buffer
 
-        print "bpos:", bpos
-        # 18 byte Message Header Block
-        self._msg_header = _unpack_from_buf(self._buf, bpos, MESSAGE_HEADER)
+        # Read and decode 18 byte Message Header Block
+        self.msg_header = _unpack_from_buf(buf, bpos, MESSAGE_HEADER)
+        if self.msg_header['code'] not in SUPPORTED_PRODUCTS:
+            code = self.msg_header['code']
+            raise NotImplementedError(
+                'Level3 product with code %i is not supported' % (code))
         bpos += 18
 
-        print self._msg_header
-        if self._msg_header['code'] not in SUPPORTED_PRODUCTS:
-            print "Code:", self._msg_header['code']
-            raise NotImplemented('This Level3 product is not supported')
-
-        # 102 byte Product Description Block
-        self._prod_descr = _unpack_from_buf(self._buf, bpos,
-                                            PRODUCT_DESCRIPTION)
-
-        prod_params = _get_product_parameters(self._msg_header['code'],
-                                              self._prod_descr)
-        self._prod_params = prod_params
+        # Read and decode 102 byte Product Description Block
+        self.prod_descr = _unpack_from_buf(buf, bpos, PRODUCT_DESCRIPTION)
         bpos += 102
 
-        # uncompressed Symbology Block is necessary
-        if 'compressed' in prod_params and prod_params['compressed']:
-            self._buf2 = bz2.decompress(self._buf[bpos:])
+        # uncompressed symbology Block if necessary
+        if buf[bpos:bpos+2] == 'BZ':
+            buf2 = bz2.decompress(buf[bpos:])
         else:
-            self._buf2 = self._buf[bpos:]
+            buf2 = buf[bpos:]
 
-        # symbology header
-        self._symbology_header = _unpack_from_buf(self._buf2, 0,
-                                                  SYMBOLOGY_HEADER)
-
-        SUPPORTED_PACKET_CODES = [16]       # elsewhere
-        packet_code = struct.unpack('>h', self._buf2[16:18])[0]
+        # Read and decode symbology header
+        self.symbology_header = _unpack_from_buf(buf2, 0, SYMBOLOGY_HEADER)
+        packet_code = struct.unpack('>h', buf2[16:18])[0]
         if packet_code not in SUPPORTED_PACKET_CODES:
-            raise NotImplemented('Packet code: %i' % packet_code)
+            raise NotImplementedError('Packet code: %i' % (packet_code))
 
         # XXX base this on the packet code
-        self._packet_header = _unpack_from_buf(self._buf2, 16,
-                                               PACKET_TYPE16_HEADER)
+        # Read radial packets
+        self.packet_header = _unpack_from_buf(buf2, 16, PACKET_TYPE16_HEADER)
         rh = []
-        #rd = []
-
-        nbins = self._packet_header['nbins']
-        nradials = self._packet_header['nradials']
-
+        nbins = self.packet_header['nbins']
+        nradials = self.packet_header['nradials']
         raw_data = np.empty((nradials, nbins), dtype='uint8')
-
         pos = 30
         for i in range(nradials):
-            rh.append(_unpack_from_buf(self._buf2, pos,
+            rh.append(_unpack_from_buf(buf2, pos,
                                        PACKET_TYPE16_RADIAL_HEADER))
             pos += 6
-            raw_data[i] = np.fromstring(self._buf2[pos:pos+nbins], '>u1')
-            #rd.append(self._buf2[pos:pos+nbins])
-            #correct data = rd * 0.5 - 33.0
+            raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
             pos += nbins
+        self.radial_headers = rh
+        self.raw_data = raw_data
 
-        print "pos:", pos
-        print "len(buf2)", len(self._buf2)
+    def get_location(self):
+        """ Return the latitude, longitude and height of the radar. """
+        latitude = self.prod_descr['latitude'] * 0.001
+        longitude = self.prod_descr['longitude'] * 0.001
+        height = self.prod_descr['height']
+        return latitude, longitude, height
 
-        self._radial_headers = rh
-        self._raw_data = raw_data
+    def get_azimuth(self):
+        """ Return an array of starting azimuth angles in degrees. """
+        azimuths = [d['angle_start'] for d in self.radial_headers]
+        return np.array(azimuths, dtype='float32') * 0.1
 
-        # scale according to threshold_data
+    def get_range(self):
+        """ Return an array of gate range spacing in meters. """
+        nbins = self.packet_header['nbins']
+        first_bin = self.packet_header['first_bin']
+        range_scale = self.packet_header['range_scale']
+        return np.arange(nbins, dtype='float32') * range_scale + first_bin
+
+    def get_elevation(self):
+        """ Return the sweep elevation angle in degrees. """
+        msg_code = self.msg_header['code']
+
+        if msg_code == 94:
+            w30 = self.prod_descr['halfwords_30']
+            elevation = struct.unpack('>h', w30)[0] * 0.1
+        else:
+            raise NotImplementedError
+        return elevation
+
+    def get_volume_start_datetime(self):
+        """ Return a datetime of the start of the radar volume. """
+        return datetime_from_mdate_mtime(self.prod_descr['vol_scan_date'],
+                                         self.prod_descr['vol_scan_time'])
+
+    def get_data(self):
+        """ Return an masked array containing the field data. """
+        # scale and mask according to threshold_data
         # XXX this works for products 32, 94, 153, 194, 195
-        s = self._prod_descr['threshold_data']
+        s = self.prod_descr['threshold_data']
         hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
+        data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
+        mdata = np.ma.array(data, mask=self.raw_data < 2)
+        return mdata
 
-        data = (raw_data - 2) * (hw32/10.) + hw31/10.
-        mdata = np.ma.array(data, mask=raw_data < 2)
-
-        self.data = mdata
 
 def datetime_from_mdate_mtime(mdate, mtime):
     """ Returns a datetime for a given message date and time. """
     epoch = datetime.datetime.utcfromtimestamp(0)
-    return epoch + datetime.timedelta(days = mdate - 1, seconds=mtime)
+    return epoch + datetime.timedelta(days=mdate - 1, seconds=mtime)
+
 
 def _structure_size(structure):
     """ Find the size of a structure in bytes. """
@@ -121,19 +153,16 @@ def _unpack_structure(string, structure):
     l = struct.unpack(fmt, string)
     return dict(zip([i[0] for i in structure], l))
 
+
 def _get_product_parameters(code, prod_descr):
     """ """
 
+    # extract halfwords 27, 28, 30, 47-53.
     s = prod_descr['halfwords_27_28']
     w27, w28 = s[0:2], s[2:4]
     w30 = prod_descr['halfwords_30']
     s = prod_descr['halfwords_47_53']
     w47, w48, w49, w50, w51, w52, w53 = [s[2*i:2*i+2] for i in range(7)]
-
-    #hw27, hw28 = struct.unpack('>2h', prod_descr['halfwords_27_28'])
-    #hw30 = struct.unpack('>1h', prod_descr['halfwords_30'])
-    #t = struct.unpack('>7h', prod_descr['halfwords_47_53'])
-    #hw47, hw48, hw49, hw50, hw51, hw52, hw53 = t
 
     # Table V.
     # Product Dependent Halfword Definition for Product Description Block
@@ -147,7 +176,8 @@ def _get_product_parameters(code, prod_descr):
             'compressed': struct.unpack('>h', w51)[0],
             'uncompressed_size': struct.unpack('>i', w52+w53)[0]
         }
-
+    else:
+        return {}
 
 # NEXRAD Level III file structures and sizes
 # The deails on these structures are documented in:
@@ -188,7 +218,7 @@ PRODUCT_DESCRIPTION = (
     ('longitude', INT4),        # Longitude of radar, degrees, + for east
     ('height', INT2),           # Height of radar, feet abouve mean sea level
     ('product_code', INT2),     # NEXRAD product code
-    ('operational_mode', INT2), # 0 = Maintenance, 1 = Clean Air, 2 = Precip
+    ('operational_mode', INT2),  # 0 = Maintenance, 1 = Clean Air, 2 = Precip
     ('vcp', INT2),              # Volume Coverage Pattern of scan strategy
     ('sequence_num', INT2),     # Sequence Number of the request.
     ('vol_scan_num', INT2),     # Volume Scan number, 1 to 80.
@@ -200,7 +230,7 @@ PRODUCT_DESCRIPTION = (
     ('elevation_num', INT2),    # Elevation number within volume scan
     ('halfwords_30', '2s'),     # Product dependent parameter 3
     ('threshold_data', '32s'),  # Data to determine threshold level values
-    ('halfwords_47_53', '14s'), # Product dependent parameters 4-10
+    ('halfwords_47_53', '14s'),  # Product dependent parameters 4-10
     ('version', BYTE),          # Version, 0
     ('spot_blank', BYTE),       # 1 = Spot blank ON, 0 = Blanking OFF
     ('offet_symbology', INT4),  # halfword offset to Symbology block
@@ -240,6 +270,12 @@ PACKET_TYPE16_RADIAL_HEADER = (
     ('angle_start', INT2),      # Starting angle at which data was collected.
     ('angle_delta', INT2)       # Delta angle from previous radial.
 )
+
+
+# Radial Data Packet - Packet Code AF1F
+# Figure 3-10 (Sheet 1 and 2), page 3-113.
+
+SUPPORTED_PACKET_CODES = [16]       # elsewhere
 
 # Message Code for Products
 # Table III pages 3-15 to 3-22
@@ -469,4 +505,3 @@ SUPPORTED_PRODUCTS = [
 #   291-296, #      Reserved for Internal RPG Use.
 #   297-299, #      Reserved for Internal RPG Use.
 ]
-

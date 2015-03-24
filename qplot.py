@@ -5,5 +5,5 @@ import nexradl3file
 
 SAMPLE_FILE = 'sample_data/KBMX_SDUS54_N0QBMX_201501020205'
 nfile = nexradl3file.NexradLevel3File(SAMPLE_FILE)
-plt.imshow(nfile.data)
+plt.imshow(nfile.get_data())
 plt.show()
