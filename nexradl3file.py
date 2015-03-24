@@ -65,24 +65,50 @@ class NexradLevel3File():
         self.symbology_header = _unpack_from_buf(buf2, 0, SYMBOLOGY_HEADER)
         packet_code = struct.unpack('>h', buf2[16:18])[0]
         if packet_code not in SUPPORTED_PACKET_CODES:
+            print buf2[16:18].encode('hex')
             raise NotImplementedError('Packet code: %i' % (packet_code))
 
-        # XXX base this on the packet code
         # Read radial packets
-        self.packet_header = _unpack_from_buf(buf2, 16, PACKET_TYPE16_HEADER)
-        rh = []
-        nbins = self.packet_header['nbins']
-        nradials = self.packet_header['nradials']
-        raw_data = np.empty((nradials, nbins), dtype='uint8')
-        pos = 30
-        for i in range(nradials):
-            rh.append(_unpack_from_buf(buf2, pos,
-                                       PACKET_TYPE16_RADIAL_HEADER))
-            pos += 6
-            raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
-            pos += nbins
-        self.radial_headers = rh
-        self.raw_data = raw_data
+        if packet_code == 16:
+            self.packet_header = _unpack_from_buf(buf2, 16,
+                                                  PACKET_TYPE16_HEADER)
+            rh = []
+            nbins = self.packet_header['nbins']
+            nradials = self.packet_header['nradials']
+            raw_data = np.empty((nradials, nbins), dtype='uint8')
+            pos = 30
+            for i in range(nradials):
+                rh.append(_unpack_from_buf(buf2, pos,
+                                           PACKET_TYPE16_RADIAL_HEADER))
+                pos += 6
+                raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
+                pos += nbins
+            self.radial_headers = rh
+            self.raw_data = raw_data
+        else:
+            assert packet_code == AF1F
+            self.packet_header = _unpack_from_buf(buf2, 16,
+                                                  PACKET_TYPE_AF1F_HEADER)
+            rh = []
+            self.foo = []
+            nbins = self.packet_header['nbins']
+            nradials = self.packet_header['nradials']
+            raw_data = np.empty((nradials, nbins), dtype='uint8')
+            pos = 30
+            for i in range(nradials):
+                radial_header = _unpack_from_buf(
+                    buf2, pos, PACKET_TYPE_AF1F_RADIAL_HEADER)
+                pos += 6
+                # decode RLE
+                rle_size = radial_header['nbytes'] * 2
+                rle = np.fromstring(buf2[pos:pos+rle_size], dtype='>u1')
+                colors = np.bitwise_and(rle, 0b00001111)
+                runs = np.bitwise_and(rle, 0b11110000) / 16
+                raw_data[i] = np.repeat(colors, runs)
+                pos += rle_size
+                rh.append(radial_header)
+            self.radial_headers = rh
+            self.raw_data = raw_data
 
     def get_location(self):
         """ Return the latitude, longitude and height of the radar. """
@@ -110,6 +136,9 @@ class NexradLevel3File():
         if msg_code == 94:
             w30 = self.prod_descr['halfwords_30']
             elevation = struct.unpack('>h', w30)[0] * 0.1
+        elif msg_code == 19:
+            w30 = self.prod_descr['halfwords_30']
+            elevation = struct.unpack('>h', w30)[0] * 0.1
         else:
             raise NotImplementedError
         return elevation
@@ -121,13 +150,24 @@ class NexradLevel3File():
 
     def get_data(self):
         """ Return an masked array containing the field data. """
-        # scale and mask according to threshold_data
-        # XXX this works for products 32, 94, 153, 194, 195
-        s = self.prod_descr['threshold_data']
-        hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
-        data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
-        mdata = np.ma.array(data, mask=self.raw_data < 2)
-        return mdata
+        msg_code = self.msg_header['code']
+        if msg_code == 94:
+            # scale and mask according to threshold_data
+            # this should be valid for products 32, 94, 153, 194, 195
+            s = self.prod_descr['threshold_data']
+            hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
+            data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
+            mdata = np.ma.array(data, mask=self.raw_data < 2)
+            return mdata
+        elif msg_code == 19:
+            # 16 data levels defined in the product description
+            data_levels = struct.unpack(
+                '>16h', self.prod_descr['threshold_data'])
+            data = np.choose(self.raw_data, data_levels)
+            mdata = np.ma.masked_equal(data, -32766)
+            return mdata
+        else:
+            raise NotImplementedError
 
 
 def datetime_from_mdate_mtime(mdate, mtime):
@@ -274,8 +314,25 @@ PACKET_TYPE16_RADIAL_HEADER = (
 
 # Radial Data Packet - Packet Code AF1F
 # Figure 3-10 (Sheet 1 and 2), page 3-113.
+PACKET_TYPE_AF1F_HEADER = (
+    ('packet_code', INT2),      # Packet Code, Type 16
+    ('first_bin', INT2),        # Location of first range bin.
+    ('nbins', INT2),            # Number of range bins.
+    ('i_sweep_center', INT2),   # I coordinate of center of sweep.
+    ('j_sweep_center', INT2),   # J coordinate of center of sweep.
+    ('range_scale', INT2),      # Range Scale factor
+    ('nradials', INT2)          # Total number of radials in the product
+)
 
-SUPPORTED_PACKET_CODES = [16]       # elsewhere
+PACKET_TYPE_AF1F_RADIAL_HEADER = (
+    ('nbytes', INT2),           # Number of bytes in the radial.
+    ('angle_start', INT2),      # Starting angle at which data was collected.
+    ('angle_delta', INT2)       # Delta angle from previous radial.
+)
+
+
+AF1F = -20705       # struct.unpack('>h', 'AF1F'.decode('hex'))
+SUPPORTED_PACKET_CODES = [16, AF1F]       # elsewhere
 
 # Message Code for Products
 # Table III pages 3-15 to 3-22
