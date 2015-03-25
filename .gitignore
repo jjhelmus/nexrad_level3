@@ -1,2 +1,4 @@
 *.pyc
+*.jar
 full_hour_sample_data/*
+sample_data/*.nc
