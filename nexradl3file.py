@@ -6,6 +6,23 @@ import bz2
 import numpy as np
 
 
+_8_OR_16_LEVELS = [19, 20, 27, 28, 30, 56, 78, 79, 80]
+
+PRODUCT_RANGE_RESOLUTION = {
+    19: 1.,     # 124 nm
+    20: 2.,     # 248 nm
+    27: 1.,
+    28: 0.25,   # 32 nm
+    30: 1.,
+    56: 1.,
+    78: 1.,
+    79: 1.,
+    80: 1.,
+    94: 1.,
+    99: 0.25,
+    159: 0.25,
+}
+
 class NexradLevel3File():
     """
     A Class for accessing data in NEXRAD Level III (3) files.
@@ -127,16 +144,18 @@ class NexradLevel3File():
         nbins = self.packet_header['nbins']
         first_bin = self.packet_header['first_bin']
         range_scale = self.packet_header['range_scale']
+        range_resolution = PRODUCT_RANGE_RESOLUTION[self.msg_header['code']]
+        range_scale *= range_resolution
         return np.arange(nbins, dtype='float32') * range_scale + first_bin
 
     def get_elevation(self):
         """ Return the sweep elevation angle in degrees. """
         msg_code = self.msg_header['code']
 
-        if msg_code == 94:
+        if msg_code in [32, 94, 99, 159]:
             w30 = self.prod_descr['halfwords_30']
             elevation = struct.unpack('>h', w30)[0] * 0.1
-        elif msg_code == 19:
+        elif msg_code in _8_OR_16_LEVELS:
             w30 = self.prod_descr['halfwords_30']
             elevation = struct.unpack('>h', w30)[0] * 0.1
         else:
@@ -151,7 +170,7 @@ class NexradLevel3File():
     def get_data(self):
         """ Return an masked array containing the field data. """
         msg_code = self.msg_header['code']
-        if msg_code == 94:
+        if msg_code in [94, 99]:
             # scale and mask according to threshold_data
             # this should be valid for products 32, 94, 153, 194, 195
             s = self.prod_descr['threshold_data']
@@ -159,12 +178,17 @@ class NexradLevel3File():
             data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
             mdata = np.ma.array(data, mask=self.raw_data < 2)
             return mdata
-        elif msg_code == 19:
-            # 16 data levels defined in the product description
-            data_levels = struct.unpack(
-                '>16h', self.prod_descr['threshold_data'])
+        elif msg_code in _8_OR_16_LEVELS:
+            # XXX could use some clean up
+            t = np.fromstring(self.prod_descr['threshold_data'], '>B')
+            flags = t[::2]
+            values = t[1::2]
+            sign = np.choose(np.bitwise_and(flags, 0x01), [1, -1])
+            bad = (np.bitwise_and(flags, 0x80) == 128)
+            data_levels = values * sign
+            data_levels[bad] = -999
             data = np.choose(self.raw_data, data_levels)
-            mdata = np.ma.masked_equal(data, -32766)
+            mdata = np.ma.masked_equal(data, -999)
             return mdata
         else:
             raise NotImplementedError
@@ -562,3 +586,4 @@ SUPPORTED_PRODUCTS = [
 #   291-296, #      Reserved for Internal RPG Use.
 #   297-299, #      Reserved for Internal RPG Use.
 ]
+
