@@ -6,7 +6,7 @@ import bz2
 import numpy as np
 
 
-_8_OR_16_LEVELS = [19, 20, 27, 28, 30, 56, 78, 79, 80]
+_8_OR_16_LEVELS = [19, 20, 27, 28, 30, 56, 78, 79, 80, 169, 171]
 
 PRODUCT_RANGE_RESOLUTION = {
     19: 1.,     # 124 nm
@@ -14,13 +14,26 @@ PRODUCT_RANGE_RESOLUTION = {
     27: 1.,
     28: 0.25,   # 32 nm
     30: 1.,
+    32: 1.,
     56: 1.,
     78: 1.,
     79: 1.,
     80: 1.,
     94: 1.,
     99: 0.25,
+    134: 1.,
+    135: 1.,
+    138: 1.,
     159: 0.25,
+    161: 0.25,
+    163: 0.25,
+    169: 1.,
+    170: 1.,
+    171: 1.,
+    172: 1.,
+    173: 1.,
+    174: 1.,
+    175: 1.,
 }
 
 class NexradLevel3File():
@@ -146,13 +159,18 @@ class NexradLevel3File():
         range_scale = self.packet_header['range_scale']
         range_resolution = PRODUCT_RANGE_RESOLUTION[self.msg_header['code']]
         range_scale *= range_resolution
+        msg_code = self.msg_header['code']
+        if msg_code in [134, 135]:
+            range_scale *= 1000.
         return np.arange(nbins, dtype='float32') * range_scale + first_bin
 
     def get_elevation(self):
         """ Return the sweep elevation angle in degrees. """
         msg_code = self.msg_header['code']
 
-        if msg_code in [32, 94, 99, 159]:
+
+        if msg_code in [32, 94, 99, 134, 135, 138, 159, 161, 163, 170, 171,
+                        172, 173, 174, 175]:
             w30 = self.prod_descr['halfwords_30']
             elevation = struct.unpack('>h', w30)[0] * 0.1
         elif msg_code in _8_OR_16_LEVELS:
@@ -170,12 +188,15 @@ class NexradLevel3File():
     def get_data(self):
         """ Return an masked array containing the field data. """
         msg_code = self.msg_header['code']
-        if msg_code in [94, 99]:
+        if msg_code in [32, 94, 99]:
             # scale and mask according to threshold_data
             # this should be valid for products 32, 94, 153, 194, 195
             s = self.prod_descr['threshold_data']
             hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
-            data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
+            if msg_code in [94, 99]:
+                data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
+            elif msg_code in [32]:
+                data = (self.raw_data) * (hw32/10.) + hw31/10.
             mdata = np.ma.array(data, mask=self.raw_data < 2)
             return mdata
         elif msg_code in _8_OR_16_LEVELS:
@@ -183,13 +204,40 @@ class NexradLevel3File():
             t = np.fromstring(self.prod_descr['threshold_data'], '>B')
             flags = t[::2]
             values = t[1::2]
+
             sign = np.choose(np.bitwise_and(flags, 0x01), [1, -1])
             bad = (np.bitwise_and(flags, 0x80) == 128)
-            data_levels = values * sign
+            scale = 1.
+            if (flags[0] & 2**5):
+                scale = 1/20.
+            if (flags[0] & 2**4):
+                scale = 1/10.
+
+            data_levels = values * sign * scale
             data_levels[bad] = -999
+
             data = np.choose(self.raw_data, data_levels)
             mdata = np.ma.masked_equal(data, -999)
             return mdata
+        elif msg_code in [138]:
+            data = self.raw_data * 0.01
+            mdata = np.ma.array(data)
+            return mdata
+        elif msg_code in [159, 161, 163, 170, 171, 172, 173, 174, 175]:
+            # scale and mask according to threshold_data
+            # this should be valid for products 159, 161, 163, 170, ...
+            s = self.prod_descr['threshold_data']
+            scale, offset = np.fromstring(s[:8], '>f4')
+            data = (self.raw_data - offset) / (scale)
+            if msg_code in [159, 161, 163]:
+                # XXX this should be < 2, but Java masked = 2
+                mdata = np.ma.array(data, mask=self.raw_data <= 2)
+            if msg_code in [170, 171, 172, 173, 174, 175]:
+                data *= 0.01    # units are 0.01 inches
+                # XXX this should be < 1, but Java masked = 1
+                mdata = np.ma.array(data, mask=self.raw_data <= 1)
+            return mdata
+
         else:
             raise NotImplementedError
 

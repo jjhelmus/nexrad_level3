@@ -1,5 +1,9 @@
 """ Unit tests checking against files converted with Java netCDF library. """
 
+# Bugs to report upstream
+# Masking of high rain rates
+# Masked of low digital dual pol moment.
+
 import os.path
 
 import numpy as np
@@ -8,9 +12,117 @@ import netCDF4
 import nexradl3file
 
 NFILES = [
-    #('current_files/KBMX_SDUS54_N0QBMX_201501020205', 'BaseReflectivityDR'),
-    #('current_files/KBMX_SDUS54_N0RBMX_201501020205', 'BaseReflectivity'),
+    # 16 XXX need sample file
+    # 17 XXX need sample file
+    # 18 XXX need sample file
+    # 19 : N0R-N3R
+    ('sample_data/KBMX_SDUS54_N0RBMX_201501020205', 'BaseReflectivity'),
+    # 20 : N0Z
+    ('sample_data/KBMX_SDUS74_N0ZBMX_201501020205', 'BaseReflectivity248'),
+    # 21 XXX need sample file
+    # 22 XXX need sample file
+    # 23 XXX need sample file
+    # 24 XXX need sample file
+    # 25 XXX need sample file
+    # 26 XXX need sample file
+    # 27 : N0V-N3V
+    ('sample_data/KBMX_SDUS54_N0VBMX_201501020205', 'RadialVelocity'),
+    # 28 : NSP
+    ('sample_data/KBMX_SDUS64_NSPBMX_201501020205', 'SpectrumWidth'),
+    # 29 : XXX need sample file
+    # 30 : NSW
+    ('sample_data/KBMX_SDUS64_NSWBMX_201501020205', 'SpectrumWidth'),
+    # 31 : XXX need sample file
+    # 32 : DHR
+    ('sample_data/KBMX_SDUS54_DHRBMX_201501020205', 'DigitalHybridReflectivity'),
+    # 33 : XXX need sample file
+    # 34 : XXX need sample file
 
+    # 55 : XXX need sample file
+    # 56 : N0S-N3S
+    ('sample_data/KBMX_SDUS54_N0SBMX_201501020205', 'StormMeanVelocity'),
+
+    # 78 : N1P
+    ('sample_data/KBMX_SDUS34_N1PBMX_201501020205', 'Precip1hr'),
+    # 79 : N3P
+    ('sample_data/KBMX_SDUS64_N3PBMX_201501020211', 'Precip3hr'),
+    # 80 : NTP
+    ('sample_data/KBMX_SDUS54_NTPBMX_201501020205', 'PrecipAccum'),
+
+    # 93 : XXX need sample file
+    # 94 : N0Q
+    ('sample_data/KBMX_SDUS54_N0QBMX_201501020205', 'BaseReflectivityDR'),
+
+    # 99 : N0U
+    ('sample_data/KBMX_SDUS54_N0UBMX_201501020205', 'BaseVelocityDV'),
+
+    # 132 : XXX need sample file
+    # 133 : XXX need sample file
+    # 134 : DVL TODO See note on page 3-33
+    #('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'DigitalIntegLiquid'),
+    # 135 : EET TODO See note on page 3-34
+    #('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'EnhancedEchoTop'),
+
+    # 138 : DSP - Works, but converted marks a gate (161, 5) as invalid whe
+    # the value is in fact valid
+    #('sample_data/KBMX_SDUS54_DSPBMX_201501020205', 'DigitalPrecip'),
+
+    # 144 : XXX need sample file
+    # 145 : XXX need sample file
+    # 146 : XXX need sample file
+    # 147 : XXX need sample file
+
+    # 150 : XXX need sample file
+    # 151 : XXX need sample file
+
+    # 153 : XXX need sample file
+    # 154 : XXX need sample file
+    # 155 : XXX need sample file
+
+    # 158 : XXX need sample file
+    # 159 : N0X-N3X, NAC, NAB
+    ('sample_data/KBMX_SDUS84_N0XBMX_201501020205', 'DifferentialReflectivity'),
+    # 161 : XXX need sample file
+    ('sample_data/KBMX_SDUS84_N0CBMX_201501020205', 'CorrelationCoefficient'),
+    # 162 : XXX need sample file
+    # 163 : N0K-N3L, NAK, NBK
+    ('sample_data/KBMX_SDUS84_N0KBMX_201501020205', 'DifferentialPhase'),
+    # 164 : XXX need sample file
+    # 165 : N0H-N3H, NAH, NBH TODO
+    #('sample_data/KBMX_SDUS84_N0HBMX_201501020205', 'HydrometeroClassification'),
+
+    # 169 : OHA
+    ('sample_data/KBMX_SDUS84_OHABMX_201501020205', 'OneHourAccumulation'),
+    # 170 : DAA
+    ('sample_data/KBMX_SDUS84_DAABMX_201501020205', 'DigitalAccumulationArray'),
+    # 171 : PTA
+    ('sample_data/KBMX_SDUS34_PTABMX_201501020205', 'StormTotalAccumulation'),
+    # 172 : DTA
+    ('sample_data/KBMX_SDUS84_DTABMX_201501020205', 'DigitalStormTotalAccumulation'),
+    # 173 : DU3 TODO
+    #('sample_data/KBMX_SDUS84_DU3BMX_201501020205', 'Accumulation3Hour'),
+    # 174 : DOD
+    ('sample_data/KBMX_SDUS84_DODBMX_201501020205', 'Digital1HourDifferenceAccumulation'),
+    # 175 : DSD
+    ('sample_data/KBMX_SDUS84_DSDBMX_201501020205', 'DigitalTotalDifferenceAccumulation'),
+    # 177 : HHC TODO
+    #('sample_data/KBMX_SDUS84_HHCBMX_201501020205', 'BaseReflectivity'),
+
+    # 194 : XXX need sample file
+    # 195 : XXX need sample file
+
+    # 199 : XXX need sample file
+
+    # 186 : XXX need sample file
+    # 187 : XXX need sample file
+    # 180 : XXX need sample file
+    # 181 : XXX need sample file
+    # 182 : XXX need sample file
+    # 183 : XXX need sample file
+    # 185 : XXX need sample file
+    # 137 : XXX need sample file
+
+    # Unsorted
     #('sample_data/KBMX_NXUS64_GSMBMX_201501020258', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS24_N1QBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS24_N1SBMX_201501020205', 'BaseReflectivity'),
@@ -20,53 +132,26 @@ NFILES = [
     #('sample_data/KBMX_SDUS24_N2UBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS24_N3QBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS24_N3UBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS34_N1PBMX_201501020205', 'Precip1hr'),
     #('sample_data/KBMX_SDUS34_N3SBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS34_NMDBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS34_NSTBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS34_NVWBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS34_PTABMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS44_RCMBMX_201501020217', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_DHRBMX_201501020205',
-    # 'DigitalHybridReflectivity'),
     #('sample_data/KBMX_SDUS54_DPABMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_DSPBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'BaseReflectivity'),
-    ('sample_data/KBMX_SDUS54_N0QBMX_201501020205', 'BaseReflectivityDR'),
-    ('sample_data/KBMX_SDUS54_N0RBMX_201501020205', 'BaseReflectivity'),
-    ('sample_data/KBMX_SDUS54_N0SBMX_201501020205', 'StormMeanVelocity'),
-    ('sample_data/KBMX_SDUS54_N0UBMX_201501020205', 'BaseVelocityDV'),
-    ('sample_data/KBMX_SDUS54_N0VBMX_201501020205', 'RadialVelocity'),
     #('sample_data/KBMX_SDUS54_NCRBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_NTPBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS54_NVLBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_N3PBMX_201501020211', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_NCZBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_NHIBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_NHLBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_NLABMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_NLLBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_NMLBMX_201501020205', 'BaseReflectivity'),
-    ('sample_data/KBMX_SDUS64_NSPBMX_201501020205', 'SpectrumWidth'),
     #('sample_data/KBMX_SDUS64_NSSBMX_201501020205', 'BaseReflectivity'),
-    ('sample_data/KBMX_SDUS64_NSWBMX_201501020205', 'SpectrumWidth'),
     #('sample_data/KBMX_SDUS64_NTVBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS64_SPDBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'BaseReflectivity'),
-    ('sample_data/KBMX_SDUS74_N0ZBMX_201501020205', 'BaseReflectivity248'),
     #('sample_data/KBMX_SDUS74_NETBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_DAABMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_DODBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS84_DPRBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_DSDBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_DTABMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_DU3BMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_HHCBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N0CBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N0HBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N0KBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS84_N0MBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N0XBMX_201501020205', 'DifferentialReflectivity'),
     #('sample_data/KBMX_SDUS84_N1CBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS84_N1HBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS84_N1KBMX_201501020205', 'BaseReflectivity'),
@@ -82,7 +167,6 @@ NFILES = [
     #('sample_data/KBMX_SDUS84_N3KBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS84_N3MBMX_201501020205', 'BaseReflectivity'),
     #('sample_data/KBMX_SDUS84_N3XBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_OHABMX_201501020205', 'BaseReflectivity'),
 
     #('sample_data/KOKX_NXUS61_GSMOKX_201108280700', 'BaseReflectivity'),
     #('sample_data/KOKX_SDUS21_N1QOKX_201108280702', 'BaseReflectivity'),
@@ -221,12 +305,11 @@ def check_data(nfile, dset, field):
     var = dset.variables[field][:]
     mvar = np.ma.masked_invalid(var)
     data = nfile.get_data()
-    assert np.ma.allequal(mvar, data)
-    assert np.all(mvar.mask == data.mask)
+    assert np.ma.allclose(mvar, data, atol=0.002)
+    assert np.all(np.ma.getmaskarray(mvar) == np.ma.getmaskarray(data))
 
 
 def check_time(nfile, dset):
     dt = nfile.get_volume_start_datetime()
     assert dt.isoformat() + 'Z' == dset.time_coverage_start
-    assert dt.isoformat() + 'Z' == dset.time_coverage_end
 
