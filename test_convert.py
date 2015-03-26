@@ -88,8 +88,8 @@ NFILES = [
     # 163 : N0K-N3L, NAK, NBK
     ('sample_data/KBMX_SDUS84_N0KBMX_201501020205', 'DifferentialPhase'),
     # 164 : XXX need sample file
-    # 165 : N0H-N3H, NAH, NBH TODO
-    #('sample_data/KBMX_SDUS84_N0HBMX_201501020205', 'HydrometeroClassification'),
+    # 165 : N0H-N3H, NAH, NBH
+    ('sample_data/KBMX_SDUS84_N0HBMX_201501020205', 'HydrometeorClassification'),
 
     # 169 : OHA
     ('sample_data/KBMX_SDUS84_OHABMX_201501020205', 'OneHourAccumulation'),
@@ -106,7 +106,7 @@ NFILES = [
     # 175 : DSD
     ('sample_data/KBMX_SDUS84_DSDBMX_201501020205', 'DigitalTotalDifferenceAccumulation'),
     # 177 : HHC TODO
-    #('sample_data/KBMX_SDUS84_HHCBMX_201501020205', 'BaseReflectivity'),
+    ('sample_data/KBMX_SDUS84_HHCBMX_201501020205', 'HypridHydrometeorClassification'),
 
     # 194 : XXX need sample file
     # 195 : XXX need sample file

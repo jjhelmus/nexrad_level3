@@ -27,6 +27,7 @@ PRODUCT_RANGE_RESOLUTION = {
     159: 0.25,
     161: 0.25,
     163: 0.25,
+    165: 0.25,
     169: 1.,
     170: 1.,
     171: 1.,
@@ -34,6 +35,7 @@ PRODUCT_RANGE_RESOLUTION = {
     173: 1.,
     174: 1.,
     175: 1.,
+    177: 0.25,
 }
 
 class NexradLevel3File():
@@ -169,8 +171,8 @@ class NexradLevel3File():
         msg_code = self.msg_header['code']
 
 
-        if msg_code in [32, 94, 99, 134, 135, 138, 159, 161, 163, 170, 171,
-                        172, 173, 174, 175]:
+        if msg_code in [32, 94, 99, 134, 135, 138, 159, 161, 163, 165,
+                        170, 171, 172, 173, 174, 175, 177]:
             w30 = self.prod_descr['halfwords_30']
             elevation = struct.unpack('>h', w30)[0] * 0.1
         elif msg_code in _8_OR_16_LEVELS:
@@ -237,7 +239,10 @@ class NexradLevel3File():
                 # XXX this should be < 1, but Java masked = 1
                 mdata = np.ma.array(data, mask=self.raw_data <= 1)
             return mdata
-
+        elif msg_code in [165, 177]:
+            # XXX divide by 10 to obtain ids on page 3-35
+            mdata = np.ma.masked_equal(self.raw_data, 0)
+            return mdata
         else:
             raise NotImplementedError
 
