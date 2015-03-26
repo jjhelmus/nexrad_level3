@@ -37,7 +37,10 @@ NFILES = [
     # 32 : DHR
     ('sample_data/KBMX_SDUS54_DHRBMX_201501020205', 'DigitalHybridReflectivity'),
     # 33 : XXX need sample file
-    # 34 : XXX need sample file
+    # 34 : NC1-5
+    # Java gives incorrect gate spacing and does not decode raw data.
+    # For now skip
+    #('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
 
     # 55 : XXX need sample file
     # 56 : N0S-N3S
@@ -225,6 +228,13 @@ NFILES = [
     #('sample_data/KLOT_SDUS23_TR2ORD_201501150004', 'BaseReflectivity'),
     #('sample_data/KLOT_SDUS73_TV1ORD_201501150004', 'BaseReflectivity'),
     #('sample_data/KLOT_SDUS73_TV2ORD_201501150004', 'BaseReflectivity'),
+
+    #('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
+    #('sample_data/KAMA_SDUS64_NC2AMA_201502150549', 'error'),
+    #('sample_data/KAMA_SDUS64_NC3AMA_201502150549', 'error'),
+    #('sample_data/KAMA_SDUS64_NC4AMA_201502150549', 'error'),
+    #('sample_data/KAMA_SDUS64_NC5AMA_201502150549', 'error'),
+
 ]
 
 

@@ -16,6 +16,7 @@ PRODUCT_RANGE_RESOLUTION = {
     28: 0.25,
     30: 1.,
     32: 1.,
+    34: 1.,     # Java uses 0.
     56: 1.,
     78: 1.,
     79: 1.,
@@ -41,6 +42,7 @@ PRODUCT_RANGE_RESOLUTION = {
     182: 150.,
     186: 300.,
 }
+
 
 class NexradLevel3File():
     """
@@ -172,18 +174,8 @@ class NexradLevel3File():
 
     def get_elevation(self):
         """ Return the sweep elevation angle in degrees. """
-        msg_code = self.msg_header['code']
-
-
-        if msg_code in [32, 94, 99, 134, 135, 138, 159, 161, 163, 165,
-                        170, 171, 172, 173, 174, 175, 177, 182, 186]:
-            w30 = self.prod_descr['halfwords_30']
-            elevation = struct.unpack('>h', w30)[0] * 0.1
-        elif msg_code in _8_OR_16_LEVELS:
-            w30 = self.prod_descr['halfwords_30']
-            elevation = struct.unpack('>h', w30)[0] * 0.1
-        else:
-            raise NotImplementedError
+        w30 = self.prod_descr['halfwords_30']
+        elevation = struct.unpack('>h', w30)[0] * 0.1
         return elevation
 
     def get_volume_start_datetime(self):
@@ -244,9 +236,12 @@ class NexradLevel3File():
                 mdata = np.ma.array(data, mask=self.raw_data <= 1)
             return mdata
         elif msg_code in [165, 177]:
-            # XXX divide by 10 to obtain ids on page 3-35
+            # Correspond to classification in table on page 3-37
             mdata = np.ma.masked_equal(self.raw_data, 0)
             return mdata
+        elif msg_code in [34]:
+            # XXX unknown units
+            return np.ma.masked_array(self.raw_data.copy())
         else:
             raise NotImplementedError
 
@@ -653,4 +648,3 @@ SUPPORTED_PRODUCTS = [
     185,     # 5    Base Spectrum Width     Radial Image
     137,     # 40   User Select. Lay Com.   Radial Image
 ]
-
