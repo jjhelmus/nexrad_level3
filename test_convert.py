@@ -23,7 +23,8 @@ NFILES = [
     # 22 XXX need sample file
     # 23 XXX need sample file
     # 24 XXX need sample file
-    # 25 XXX need sample file
+    # 25 : NOW
+    ('sample_data/KLOT_SDUS53_NOWLOT_199510151002', 'RadialVelocity'),
     # 26 XXX need sample file
     # 27 : N0V-N3V
     ('sample_data/KBMX_SDUS54_N0VBMX_201501020205', 'RadialVelocity'),
@@ -113,11 +114,14 @@ NFILES = [
 
     # 199 : XXX need sample file
 
-    # 186 : XXX need sample file
+    # 186 : TZL
+    ('sample_data/KLOT_SDUS53_TZLORD_201501150003', 'BaseReflectivity'),
     # 187 : XXX need sample file
     # 180 : XXX need sample file
-    # 181 : XXX need sample file
-    # 182 : XXX need sample file
+    # 181 : TR0-TR2
+    ('sample_data/KLOT_SDUS53_TR0ORD_201501150004', 'BaseReflectivity'),
+    # 182 : TV0-TV2
+    ('sample_data/KLOT_SDUS53_TV0ORD_201501150004', 'RadialVelocity'),
     # 183 : XXX need sample file
     # 185 : XXX need sample file
     # 137 : XXX need sample file
@@ -215,6 +219,12 @@ NFILES = [
     #('sample_data/KOKX_SDUS71_EETOKX_201108280702', 'BaseReflectivity'),
     #('sample_data/KOKX_SDUS71_N0ZOKX_201108280702', 'BaseReflectivity'),
     #('sample_data/KOKX_SDUS71_NETOKX_201108280702', 'BaseReflectivity'),
+
+
+    #('sample_data/KLOT_SDUS23_TR1ORD_201501150004', 'BaseReflectivity'),
+    #('sample_data/KLOT_SDUS23_TR2ORD_201501150004', 'BaseReflectivity'),
+    #('sample_data/KLOT_SDUS73_TV1ORD_201501150004', 'BaseReflectivity'),
+    #('sample_data/KLOT_SDUS73_TV2ORD_201501150004', 'BaseReflectivity'),
 ]
 
 

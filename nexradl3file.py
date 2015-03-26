@@ -6,13 +6,14 @@ import bz2
 import numpy as np
 
 
-_8_OR_16_LEVELS = [19, 20, 27, 28, 30, 56, 78, 79, 80, 169, 171]
+_8_OR_16_LEVELS = [19, 20, 25, 27, 28, 30, 56, 78, 79, 80, 169, 171, 181]
 
 PRODUCT_RANGE_RESOLUTION = {
     19: 1.,     # 124 nm
     20: 2.,     # 248 nm
+    25: 0.25,   # 32 nm
     27: 1.,
-    28: 0.25,   # 32 nm
+    28: 0.25,
     30: 1.,
     32: 1.,
     56: 1.,
@@ -36,6 +37,9 @@ PRODUCT_RANGE_RESOLUTION = {
     174: 1.,
     175: 1.,
     177: 0.25,
+    181: 150.,
+    182: 150.,
+    186: 300.,
 }
 
 class NexradLevel3File():
@@ -172,7 +176,7 @@ class NexradLevel3File():
 
 
         if msg_code in [32, 94, 99, 134, 135, 138, 159, 161, 163, 165,
-                        170, 171, 172, 173, 174, 175, 177]:
+                        170, 171, 172, 173, 174, 175, 177, 182, 186]:
             w30 = self.prod_descr['halfwords_30']
             elevation = struct.unpack('>h', w30)[0] * 0.1
         elif msg_code in _8_OR_16_LEVELS:
@@ -190,12 +194,12 @@ class NexradLevel3File():
     def get_data(self):
         """ Return an masked array containing the field data. """
         msg_code = self.msg_header['code']
-        if msg_code in [32, 94, 99]:
+        if msg_code in [32, 94, 99, 182, 186]:
             # scale and mask according to threshold_data
             # this should be valid for products 32, 94, 153, 194, 195
             s = self.prod_descr['threshold_data']
             hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
-            if msg_code in [94, 99]:
+            if msg_code in [94, 99, 182, 186]:
                 data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
             elif msg_code in [32]:
                 data = (self.raw_data) * (hw32/10.) + hw31/10.
@@ -638,5 +642,15 @@ SUPPORTED_PRODUCTS = [
 #   281-290, #      Reserved for Future Products
 #   291-296, #      Reserved for Internal RPG Use.
 #   297-299, #      Reserved for Internal RPG Use.
+
+# TDWR products
+    186,     # 1    Base Reflectivity       Radial Image
+    187,     # 1    Base Reflectivity       Radial Image
+    180,     # 1    Base Reflectivity       Radial Image
+    181,     # 1    Base Reflectivity       Radial Image
+    182,     # 2    Base Velocity           Radial Image
+    183,     # 2    Base Velocity           Radial Image
+    185,     # 5    Base Spectrum Width     Radial Image
+    137,     # 40   User Select. Lay Com.   Radial Image
 ]
 
