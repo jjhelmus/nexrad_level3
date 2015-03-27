@@ -261,6 +261,10 @@ class NexradLevel3File():
             data[s] = np.exp((self.raw_data[s] - log_offset) / (log_scale))
             mdata = np.ma.masked_array(data, mask=self.raw_data < 2)
             return mdata
+        elif msg_code in [135]:
+            mdata = np.ma.array(self.raw_data - 2, mask=self.raw_data <=1)
+            mdata[self.raw_data >= 128] -= 128
+            return mdata.astype('float32')
         else:
             raise NotImplementedError
 

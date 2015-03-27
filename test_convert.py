@@ -12,89 +12,50 @@ import netCDF4
 import nexradl3file
 
 NFILES = [
-    # 16 XXX need sample file
-    # 17 XXX need sample file
-    # 18 XXX need sample file
     # 19 : N0R-N3R
     ('sample_data/KBMX_SDUS54_N0RBMX_201501020205', 'BaseReflectivity'),
     # 20 : N0Z
     ('sample_data/KBMX_SDUS74_N0ZBMX_201501020205', 'BaseReflectivity248'),
-    # 21 XXX need sample file
-    # 22 XXX need sample file
-    # 23 XXX need sample file
-    # 24 XXX need sample file
     # 25 : NOW
     ('sample_data/KLOT_SDUS53_NOWLOT_199510151002', 'RadialVelocity'),
-    # 26 XXX need sample file
     # 27 : N0V-N3V
     ('sample_data/KBMX_SDUS54_N0VBMX_201501020205', 'RadialVelocity'),
     # 28 : NSP
     ('sample_data/KBMX_SDUS64_NSPBMX_201501020205', 'SpectrumWidth'),
-    # 29 : XXX need sample file
     # 30 : NSW
     ('sample_data/KBMX_SDUS64_NSWBMX_201501020205', 'SpectrumWidth'),
-    # 31 : XXX need sample file
     # 32 : DHR
     ('sample_data/KBMX_SDUS54_DHRBMX_201501020205', 'DigitalHybridReflectivity'),
-    # 33 : XXX need sample file
-    # 34 : NC1-5
+    # 34 : NC1-5 XXX
     # Java gives incorrect gate spacing and does not decode raw data.
     # For now skip
     #('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
-
-    # 55 : XXX need sample file
     # 56 : N0S-N3S
     ('sample_data/KBMX_SDUS54_N0SBMX_201501020205', 'StormMeanVelocity'),
-
     # 78 : N1P
     ('sample_data/KBMX_SDUS34_N1PBMX_201501020205', 'Precip1hr'),
     # 79 : N3P
     ('sample_data/KBMX_SDUS64_N3PBMX_201501020211', 'Precip3hr'),
     # 80 : NTP
     ('sample_data/KBMX_SDUS54_NTPBMX_201501020205', 'PrecipAccum'),
-
-    # 93 : XXX need sample file
     # 94 : N0Q
     ('sample_data/KBMX_SDUS54_N0QBMX_201501020205', 'BaseReflectivityDR'),
-
     # 99 : N0U
     ('sample_data/KBMX_SDUS54_N0UBMX_201501020205', 'BaseVelocityDV'),
-
-    # 132 : XXX need sample file
-    # 133 : XXX need sample file
-    # 134 : DVL TODO See note on page 3-33
+    # 134 : DVL
     ('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'DigitalIntegLiquid'),
     # 135 : EET TODO See note on page 3-34
-    #('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'EnhancedEchoTop'),
-
+    ('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'EnhancedEchoTop'),
     # 138 : DSP - Works, but converted marks a gate (161, 5) as invalid whe
-    # the value is in fact valid
+    # the value is in fact valid XXX
     #('sample_data/KBMX_SDUS54_DSPBMX_201501020205', 'DigitalPrecip'),
-
-    # 144 : XXX need sample file
-    # 145 : XXX need sample file
-    # 146 : XXX need sample file
-    # 147 : XXX need sample file
-
-    # 150 : XXX need sample file
-    # 151 : XXX need sample file
-
-    # 153 : XXX need sample file
-    # 154 : XXX need sample file
-    # 155 : XXX need sample file
-
-    # 158 : XXX need sample file
     # 159 : N0X-N3X, NAC, NAB
     ('sample_data/KBMX_SDUS84_N0XBMX_201501020205', 'DifferentialReflectivity'),
-    # 161 : XXX need sample file
     ('sample_data/KBMX_SDUS84_N0CBMX_201501020205', 'CorrelationCoefficient'),
-    # 162 : XXX need sample file
     # 163 : N0K-N3L, NAK, NBK
     ('sample_data/KBMX_SDUS84_N0KBMX_201501020205', 'DifferentialPhase'),
-    # 164 : XXX need sample file
     # 165 : N0H-N3H, NAH, NBH
     ('sample_data/KBMX_SDUS84_N0HBMX_201501020205', 'HydrometeorClassification'),
-
     # 169 : OHA
     ('sample_data/KBMX_SDUS84_OHABMX_201501020205', 'OneHourAccumulation'),
     # 170 : DAA
@@ -109,25 +70,14 @@ NFILES = [
     ('sample_data/KBMX_SDUS84_DODBMX_201501020205', 'Digital1HourDifferenceAccumulation'),
     # 175 : DSD
     ('sample_data/KBMX_SDUS84_DSDBMX_201501020205', 'DigitalTotalDifferenceAccumulation'),
-    # 177 : HHC TODO
+    # 177 : HHC
     ('sample_data/KBMX_SDUS84_HHCBMX_201501020205', 'HypridHydrometeorClassification'),
-
-    # 194 : XXX need sample file
-    # 195 : XXX need sample file
-
-    # 199 : XXX need sample file
-
     # 186 : TZL
     ('sample_data/KLOT_SDUS53_TZLORD_201501150003', 'BaseReflectivity'),
-    # 187 : XXX need sample file
-    # 180 : XXX need sample file
     # 181 : TR0-TR2
     ('sample_data/KLOT_SDUS53_TR0ORD_201501150004', 'BaseReflectivity'),
     # 182 : TV0-TV2
     ('sample_data/KLOT_SDUS53_TV0ORD_201501150004', 'RadialVelocity'),
-    # 183 : XXX need sample file
-    # 185 : XXX need sample file
-    # 137 : XXX need sample file
 
     # Unsorted
     #('sample_data/KBMX_NXUS64_GSMBMX_201501020258', 'BaseReflectivity'),
