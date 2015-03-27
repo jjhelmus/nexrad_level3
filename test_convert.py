@@ -33,7 +33,8 @@ ONE_FILE_PER_SUPPORTED_MSG_CODE = [
     # 30 : NSW
     ('sample_data/KBMX_SDUS64_NSWBMX_201501020205', 'SpectrumWidth'),
     # 32 : DHR
-    ('sample_data/KBMX_SDUS54_DHRBMX_201501020205', 'DigitalHybridReflectivity'),
+    ('sample_data/KBMX_SDUS54_DHRBMX_201501020205',
+     'DigitalHybridReflectivity'),
     # 34 : NC1-5
     ('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
     # 56 : N0S-N3S
@@ -55,29 +56,36 @@ ONE_FILE_PER_SUPPORTED_MSG_CODE = [
     # 138 : DSP
     ('sample_data/KBMX_SDUS54_DSPBMX_201501020205', 'DigitalPrecip'),
     # 159 : N0X-N3X, NAX, NBX
-    ('sample_data/KBMX_SDUS84_N0XBMX_201501020205', 'DifferentialReflectivity'),
+    ('sample_data/KBMX_SDUS84_N0XBMX_201501020205',
+     'DifferentialReflectivity'),
     # 161 : N0C-N3C, NAC, NBC
     ('sample_data/KBMX_SDUS84_N0CBMX_201501020205', 'CorrelationCoefficient'),
     # 163 : N0K-N3L, NAK, NBK
     ('sample_data/KBMX_SDUS84_N0KBMX_201501020205', 'DifferentialPhase'),
     # 165 : N0H-N3H, NAH, NBH
-    ('sample_data/KBMX_SDUS84_N0HBMX_201501020205', 'HydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_N0HBMX_201501020205',
+     'HydrometeorClassification'),
     # 169 : OHA
     ('sample_data/KBMX_SDUS84_OHABMX_201501020205', 'OneHourAccumulation'),
     # 170 : DAA
-    ('sample_data/KBMX_SDUS84_DAABMX_201501020205', 'DigitalAccumulationArray'),
+    ('sample_data/KBMX_SDUS84_DAABMX_201501020205',
+     'DigitalAccumulationArray'),
     # 171 : PTA
     ('sample_data/KBMX_SDUS34_PTABMX_201501020205', 'StormTotalAccumulation'),
     # 172 : DTA
-    ('sample_data/KBMX_SDUS84_DTABMX_201501020205', 'DigitalStormTotalAccumulation'),
+    ('sample_data/KBMX_SDUS84_DTABMX_201501020205',
+     'DigitalStormTotalAccumulation'),
     # 173 : DU3
     ('sample_data/KBMX_SDUS84_DU3BMX_201501020205', 'Accumulation3Hour'),
     # 174 : DOD
-    ('sample_data/KBMX_SDUS84_DODBMX_201501020205', 'Digital1HourDifferenceAccumulation'),
+    ('sample_data/KBMX_SDUS84_DODBMX_201501020205',
+     'Digital1HourDifferenceAccumulation'),
     # 175 : DSD
-    ('sample_data/KBMX_SDUS84_DSDBMX_201501020205', 'DigitalTotalDifferenceAccumulation'),
+    ('sample_data/KBMX_SDUS84_DSDBMX_201501020205',
+     'DigitalTotalDifferenceAccumulation'),
     # 177 : HHC
-    ('sample_data/KBMX_SDUS84_HHCBMX_201501020205', 'HypridHydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_HHCBMX_201501020205',
+     'HypridHydrometeorClassification'),
     # 186 : TZL
     ('sample_data/KLOT_SDUS53_TZLORD_201501150003', 'BaseReflectivity'),
     # 181 : TR0-TR2
@@ -98,7 +106,8 @@ ADDITIONAL_SUPPORTED_FILES = [
     # 30 : NSW
     ('sample_data/KOKX_SDUS61_NSWOKX_201108280702', 'SpectrumWidth'),
     # 32 : DHR
-    ('sample_data/KOKX_SDUS51_DHROKX_201108280702', 'DigitalHybridReflectivity'),
+    ('sample_data/KOKX_SDUS51_DHROKX_201108280702',
+     'DigitalHybridReflectivity'),
     # 34 : NC?
     ('sample_data/KAMA_SDUS64_NC2AMA_201502150549', 'error'),
     ('sample_data/KAMA_SDUS64_NC3AMA_201502150549', 'error'),
@@ -145,9 +154,12 @@ ADDITIONAL_SUPPORTED_FILES = [
     # 138 : DSP
     ('sample_data/KOKX_SDUS51_DSPOKX_201108280702', 'DigitalPrecip'),
     # 159: N?X
-    ('sample_data/KBMX_SDUS84_N1XBMX_201501020205', 'DifferentialReflectivity'),
-    ('sample_data/KBMX_SDUS84_N2XBMX_201501020205', 'DifferentialReflectivity'),
-    ('sample_data/KBMX_SDUS84_N3XBMX_201501020205', 'DifferentialReflectivity'),
+    ('sample_data/KBMX_SDUS84_N1XBMX_201501020205',
+     'DifferentialReflectivity'),
+    ('sample_data/KBMX_SDUS84_N2XBMX_201501020205',
+     'DifferentialReflectivity'),
+    ('sample_data/KBMX_SDUS84_N3XBMX_201501020205',
+     'DifferentialReflectivity'),
     # 161: N?C
     ('sample_data/KBMX_SDUS84_N1CBMX_201501020205', 'CorrelationCoefficient'),
     ('sample_data/KBMX_SDUS84_N2CBMX_201501020205', 'CorrelationCoefficient'),
@@ -157,9 +169,12 @@ ADDITIONAL_SUPPORTED_FILES = [
     ('sample_data/KBMX_SDUS84_N2KBMX_201501020205', 'DifferentialPhase'),
     ('sample_data/KBMX_SDUS84_N3KBMX_201501020205', 'DifferentialPhase'),
     # 165: N?H
-    ('sample_data/KBMX_SDUS84_N1HBMX_201501020205', 'HydrometeorClassification'),
-    ('sample_data/KBMX_SDUS84_N2HBMX_201501020205', 'HydrometeorClassification'),
-    ('sample_data/KBMX_SDUS84_N3HBMX_201501020205', 'HydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_N1HBMX_201501020205',
+     'HydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_N2HBMX_201501020205',
+     'HydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_N3HBMX_201501020205',
+     'HydrometeorClassification'),
     # 181 TR0
     ('sample_data/KLOT_SDUS23_TR1ORD_201501150004', 'BaseReflectivity'),
     ('sample_data/KLOT_SDUS23_TR2ORD_201501150004', 'BaseReflectivity'),
@@ -256,23 +271,23 @@ NOT_SUPPORTED_FILES = [
 ]
 
 
-
 def test_files():
     if TEST_ONE_FILE:
         for n3file, field in ONE_FILE_PER_SUPPORTED_MSG_CODE:
-            head, tail = os.path.split(n3file)
+            _, tail = os.path.split(n3file)
             check_pair.description = 'Checking ' + tail
             yield check_pair, n3file, field
     if TEST_ADDITION:
         for n3file, field in ADDITIONAL_SUPPORTED_FILES:
-            head, tail = os.path.split(n3file)
+            _, tail = os.path.split(n3file)
             check_pair.description = 'Checking ' + tail
             yield check_pair, n3file, field
     if TEST_NOSUPPORT:
         for n3file in NOT_SUPPORTED_FILES:
-            head, tail = os.path.split(n3file)
+            _, tail = os.path.split(n3file)
             check_raises.description = 'Checking ' + tail
             yield check_raises, n3file
+
 
 def check_raises(n3file):
     assert_raises(NotImplementedError, nexradl3file.NexradLevel3File, n3file)
@@ -314,6 +329,7 @@ def check_pair(n3file, field):
     # raw field data
     if field.startswith('error'):
         # DIFFERENCE: Java library does not decode the message code 34 data
+        data = nfile.get_data()     # request data for coverage
         pass
     else:
         data = nfile.get_data()
@@ -335,19 +351,18 @@ def check_pair(n3file, field):
             # as a mask rather than a valid value.
             # Msg 170, 172, 173, 174, 175, see table on page 3-36.
             data.mask[nfile.raw_data == 1] = True
-        rtol=1e-5
-        atol=1e-8
+        rtol = 1e-5
+        atol = 1e-8
         # DIFFERENCE : Precipitation acculations are slightly difference
         # when converted with Python vs. the Java library.  This is likely due
         # to floating point round off errors although them seem larger than
         # expected.
         if msg_code in [170, 174, 175]:
-            atol=0.002
+            atol = 0.002
         elif msg_code in [173]:
-            atol=0.002
-            rtol=0.008
+            atol = 0.002
+            rtol = 0.008
         check_data(data, dset, field, atol=atol, rtol=rtol)
-        #check_data(data, dset, field, atol=0.002, rtol=0.008)
 
     # global attributes
     # time_coverage_start, time_coverage_end
@@ -369,7 +384,7 @@ def check_gate(nfile, dset):
 
 
 def check_location(nfile, dset):
-    latitude, longitude, height = nfile.get_location()
+    latitude, longitude, _ = nfile.get_location()
 
     var = dset.variables['latitude'][:]
     assert np.all(var == var[0])
@@ -395,4 +410,3 @@ def check_data(data, dset, field, atol, rtol):
 def check_time(nfile, dset):
     dt = nfile.get_volume_start_datetime()
     assert dt.isoformat() + 'Z' == dset.time_coverage_start
-

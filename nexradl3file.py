@@ -1,48 +1,9 @@
 
-import struct
-import datetime
 import bz2
-import warnings
+import datetime
+import struct
 
 import numpy as np
-
-
-_8_OR_16_LEVELS = [19, 20, 25, 27, 28, 30, 56, 78, 79, 80, 169, 171, 181]
-
-PRODUCT_RANGE_RESOLUTION = {
-    19: 1.,     # 124 nm
-    20: 2.,     # 248 nm
-    25: 0.25,   # 32 nm
-    27: 1.,
-    28: 0.25,
-    30: 1.,
-    32: 1.,
-    34: 1.,
-    56: 1.,
-    78: 1.,
-    79: 1.,
-    80: 1.,
-    94: 1.,
-    99: 0.25,
-    134: 1.,
-    135: 1.,
-    138: 1.,
-    159: 0.25,
-    161: 0.25,
-    163: 0.25,
-    165: 0.25,
-    169: 1.,
-    170: 1.,
-    171: 1.,
-    172: 1.,
-    173: 1.,
-    174: 1.,
-    175: 1.,
-    177: 0.25,
-    181: 150.,
-    182: 150.,
-    186: 300.,
-}
 
 
 class NexradLevel3File():
@@ -94,7 +55,7 @@ class NexradLevel3File():
         self.prod_descr = _unpack_from_buf(buf, bpos, PRODUCT_DESCRIPTION)
         bpos += 102
 
-        # uncompressed symbology Block if necessary
+        # uncompressed symbology block if necessary
         if buf[bpos:bpos+2] == 'BZ':
             buf2 = bz2.decompress(buf[bpos:])
         else:
@@ -102,58 +63,44 @@ class NexradLevel3File():
 
         # Read and decode symbology header
         self.symbology_header = _unpack_from_buf(buf2, 0, SYMBOLOGY_HEADER)
-        packet_code = struct.unpack('>h', buf2[16:18])[0]
-        if packet_code not in SUPPORTED_PACKET_CODES:
-            print buf2[16:18].encode('hex')
-            raise NotImplementedError('Packet code: %i' % (packet_code))
 
         # Read radial packets
+        packet_code = struct.unpack('>h', buf2[16:18])[0]
+        assert packet_code in SUPPORTED_PACKET_CODES
+        self.packet_header = _unpack_from_buf(buf2, 16, RADIAL_PACKET_HEADER)
+        self.radial_headers = []
+        nbins = self.packet_header['nbins']
+        nradials = self.packet_header['nradials']
+
         if packet_code == 16:
-            self.packet_header = _unpack_from_buf(buf2, 16,
-                                                  PACKET_TYPE16_HEADER)
-            first_radial_header = _unpack_from_buf(
-                buf2, 30, PACKET_TYPE16_RADIAL_HEADER)
-            rh = []
-            nbins = self.packet_header['nbins']
-            nbytes= first_radial_header['nbytes']
+            first_radial_header = _unpack_from_buf(buf2, 30, RADIAL_HEADER)
+            nbytes = first_radial_header['nbytes']
             if nbins != nbytes:
                 # sometime these do not match, use nbytes
                 nbins = nbytes
-            nradials = self.packet_header['nradials']
-            raw_data = np.empty((nradials, nbins), dtype='uint8')
+            self.raw_data = np.empty((nradials, nbins), dtype='uint8')
             pos = 30
             for i in range(nradials):
-                rh.append(_unpack_from_buf(buf2, pos,
-                                           PACKET_TYPE16_RADIAL_HEADER))
+                self.radial_headers.append(_unpack_from_buf(buf2, pos,
+                                           RADIAL_HEADER))
                 pos += 6
-                raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
-                pos += rh[-1]['nbytes']
-            self.radial_headers = rh
-            self.raw_data = raw_data
+                self.raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
+                pos += self.radial_headers[-1]['nbytes']
         else:
             assert packet_code == AF1F
-            self.packet_header = _unpack_from_buf(buf2, 16,
-                                                  PACKET_TYPE_AF1F_HEADER)
-            rh = []
-            self.foo = []
-            nbins = self.packet_header['nbins']
-            nradials = self.packet_header['nradials']
-            raw_data = np.empty((nradials, nbins), dtype='uint8')
+            self.raw_data = np.empty((nradials, nbins), dtype='uint8')
             pos = 30
             for i in range(nradials):
-                radial_header = _unpack_from_buf(
-                    buf2, pos, PACKET_TYPE_AF1F_RADIAL_HEADER)
+                radial_header = _unpack_from_buf(buf2, pos, RADIAL_HEADER)
                 pos += 6
                 # decode RLE
                 rle_size = radial_header['nbytes'] * 2
                 rle = np.fromstring(buf2[pos:pos+rle_size], dtype='>u1')
                 colors = np.bitwise_and(rle, 0b00001111)
                 runs = np.bitwise_and(rle, 0b11110000) / 16
-                raw_data[i] = np.repeat(colors, runs)
+                self.raw_data[i] = np.repeat(colors, runs)
                 pos += rle_size
-                rh.append(radial_header)
-            self.radial_headers = rh
-            self.raw_data = raw_data
+                self.radial_headers.append(radial_header)
 
     def get_location(self):
         """ Return the latitude, longitude and height of the radar. """
@@ -270,7 +217,7 @@ class NexradLevel3File():
             mdata = np.ma.masked_array(data, mask=self.raw_data < 2)
             return mdata
         elif msg_code in [135]:
-            mdata = np.ma.array(self.raw_data - 2, mask=self.raw_data <=1)
+            mdata = np.ma.array(self.raw_data - 2, mask=self.raw_data <= 1)
             mdata[self.raw_data >= 128] -= 128
             return mdata.astype('float32')
         else:
@@ -313,11 +260,49 @@ def _unpack_structure(string, structure):
     return dict(zip([i[0] for i in structure], l))
 
 
-# NEXRAD Level III file structures and sizes
+# NEXRAD Level III file structures, sizes, and static data
 # The deails on these structures are documented in:
 # "INTERFACE CONTROL DOCUMENT FOR THE RPG TO CLASS 1 USER" RPG Build 13.0
 # Document Number 2620001T
 # Tables and page number refer to those in this document.
+
+_8_OR_16_LEVELS = [19, 20, 25, 27, 28, 30, 56, 78, 79, 80, 169, 171, 181]
+
+PRODUCT_RANGE_RESOLUTION = {
+    19: 1.,     # 124 nm
+    20: 2.,     # 248 nm
+    25: 0.25,   # 32 nm
+    27: 1.,
+    28: 0.25,
+    30: 1.,
+    32: 1.,
+    34: 1.,
+    56: 1.,
+    78: 1.,
+    79: 1.,
+    80: 1.,
+    94: 1.,
+    99: 0.25,
+    134: 1.,
+    135: 1.,
+    138: 1.,
+    159: 0.25,
+    161: 0.25,
+    163: 0.25,
+    165: 0.25,
+    169: 1.,
+    170: 1.,
+    171: 1.,
+    172: 1.,
+    173: 1.,
+    174: 1.,
+    175: 1.,
+    177: 0.25,
+    181: 150.,
+    182: 150.,
+    186: 300.,
+}
+
 
 # format of structure elements
 # Figure E-1, page E-1
@@ -389,26 +374,12 @@ SYMBOLOGY_HEADER = (
 
 # Digital Radial Data Array Packet - Packet Code 16 (Sheet 2)
 # Figure 3-11c (Sheet 1 and 2), page 3-120.
-PACKET_TYPE16_HEADER = (
-    ('packet_code', INT2),      # Packet Code, Type 16
-    ('first_bin', INT2),        # Location of first range bin.
-    ('nbins', INT2),            # Number of range bins.
-    ('i_sweep_center', INT2),   # I coordinate of center of sweep.
-    ('j_sweep_center', INT2),   # J coordinate of center of sweep.
-    ('range_scale', INT2),      # Range Scale factor
-    ('nradials', INT2)          # Total number of radials in the product
-)
-
-PACKET_TYPE16_RADIAL_HEADER = (
-    ('nbytes', INT2),           # Number of bytes in the radial.
-    ('angle_start', INT2),      # Starting angle at which data was collected.
-    ('angle_delta', INT2)       # Delta angle from previous radial.
-)
-
-
+# and
 # Radial Data Packet - Packet Code AF1F
 # Figure 3-10 (Sheet 1 and 2), page 3-113.
-PACKET_TYPE_AF1F_HEADER = (
+AF1F = -20705       # struct.unpack('>h', 'AF1F'.decode('hex'))
+SUPPORTED_PACKET_CODES = [16, AF1F]       # elsewhere
+RADIAL_PACKET_HEADER = (
     ('packet_code', INT2),      # Packet Code, Type 16
     ('first_bin', INT2),        # Location of first range bin.
     ('nbins', INT2),            # Number of range bins.
@@ -418,251 +389,235 @@ PACKET_TYPE_AF1F_HEADER = (
     ('nradials', INT2)          # Total number of radials in the product
 )
 
-PACKET_TYPE_AF1F_RADIAL_HEADER = (
+RADIAL_HEADER = (
     ('nbytes', INT2),           # Number of bytes in the radial.
     ('angle_start', INT2),      # Starting angle at which data was collected.
     ('angle_delta', INT2)       # Delta angle from previous radial.
 )
 
-
-AF1F = -20705       # struct.unpack('>h', 'AF1F'.decode('hex'))
-SUPPORTED_PACKET_CODES = [16, AF1F]       # elsewhere
-
-# Message Code for Products
-# Table III pages 3-15 to 3-22
+# A list of the NEXRAD Level 3 Product supported by this module taken
+# from the "Message Code for Products" Table III pages 3-15 to 3-22
+# All the supported products have a Radial Image Message format.
+#   Code    # Product Name
+#   -----   -----------------------
 SUPPORTED_PRODUCTS = [
-
-#   Code     # NTR  Product Name            Message format
-#   ---------  ---  ----------------------- ----------------------------------
-    16,      # 1    Base Reflectivity       Radial Image
-    17,      # 1    Base Reflectivity       Radial Image
-    18,      # 1    Base Reflectivity       Radial Image
-    19,      # 1    Base Reflectivity       Radial Image
-    20,      # 1    Base Reflectivity       Radial Image
-    21,      # 1    Base Reflectivity       Radial Image
-    22,      # 2    Base Velocity           Radial Image
-    23,      # 2    Base Velocity           Radial Image
-    24,      # 2    Base Velocity           Radial Image
-    25,      # 2    Base Velocity           Radial Image
-    26,      # 2    Base Velocity           Radial Image
-    27,      # 2    Base Velocity           Radial image
-    28,      # 3    Base Spectrum Width     Radial Image
-    29,      # 3    Base Spectrum Width     Radial Image
-    30,      # 3    Base Spectrum Width     Radial Image
-#   31,      # 32   User Selectable Storm   Radial Image/Geographic Alpha
-             # ...  Total Precipitation
-    32,      # 33   Digital Hybrid Scan     Radial Image
-             # ...  Reflectivty
-    33,      # 33   Hybrid Scan             Radial Image
-             # ...  Reflectivty
-    34,      # 34   Clutter Filter Control  Radial Image
-#   35,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-#   36,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-#   37,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-#   38,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-#   39,      #      Spare
-#   40,      #      Spare
-#   41,      # 8    Echo Tops               Raster Image
-#   42,      #      Spare
-#   43,      #      Spare
-#   44,      #      Spare
-#   45,      #      Spare
-#   46,      #      Spare
-#   47,      #      Spare
-#   48,      # 12   VAD Wind Profile        Non-geographic Alphanumeric
-#   49,      #      Spare
-#   50,      # 14   Cross Section           Raster Image (Reflectivity)
-             # ...  (Reflectivity)
-#   51,      # 14   Cross Section           Raster Image (Velocity)
-             # ...  (Velocity)
-#   52,      #      Spare
-#   53,      #      Spare
-#   54,      #      Reserved
-    55,      # 16   Storm Relative Mean     Radial Image (Region)
-             # ...  Radial Velocity
-    56,      # 16   Storm Relative Mean     Radial Image (Map)
-             # ...  Radial Velocity
-#   57,      # 17   Vertically Integrated   Raster Image
-             # ...  Liquid
-#   58,      # 18   Storm Tracking          Non-geographic Alpha
-             # ...  Information
-#   59,      # 19   Hail Index              Non-geographic Alpha
-#   60,      #      Spare
-#   61,      # 21   Tornado Vortex          Geographic and Non-geographic
-             # ...  Signature               Alphanumeric
-#   62,      # 22   Storm Structure         Alphanumeric
-#   63,      # 23   Layer Composite         Raster Image (Layer 1 Average)
-             # ...  Reflectivity
-#   64,      # 23   Layer Composite         Raster Image (Layer 2 Average)
-             # ...  Reflectivity
-#   65,      # 23   Layer Composite         Raster Image (Layer 1 Maximum)
-             # ...  Reflectivity
-#   66,      # 23   Layer Composite         Raster Image (Layer 2 Maximum)
-             # ...  Reflectivity
-#   67,      # 23   Layer Composite         Raster Image
-             # ...  Reflectivity - AP Removed
-#   68,      #      Spare
-#   69,      #      Spare
-#   70,      #      Spare
-#   71,      #      Spare
-#   72,      #      Spare
-#   73,      # 25   User Alert Message      Alphanumeric
-#   74,      # 26   Radar Coded Message     Alphanumeric
-#   75,      # 27   Free Text Message       Alphanumeric
-#   76,      #      Reserved for internal PUP use.
-    78,      # 28   Surface Rainfall Accum. Radial Image
-             # ...  (1 hr)
-    79,      # 28   Surface Rainfall Accum. Radial Image
-             # ...  (3 hr)
-    80,      # 29   Storm Total Rainfall    Radial Image
-             # ...  Accumulation
-#   81,      # 30   Hourly Digital          Raster Image / Alphanumeric
-             # ...  Precipitation Array
-#   82,      # 31   Supplemental            Alphanumeric
-             # ...  Precipitation Data
-#   83,      #      Spare
-#   84,      # 12   Velocity Azimuth        Non-geographic Alphanumeric
-             # ...  Display
-#   85,      # 14   Cross Section           Raster Image (Reflectivity)
-             # ...  Reflectivity
-#   86,      # 14   Cross Section Velocity  Raster Image (Velocity)
-#   87,      #      Spare
-#   88,      #      Spare
-#   89,      # 23   Layer Composite         Raster Image - Layer 3 Average
-             # ...  Reflectivity
-#   90,      # 23   Layer Composite         Raster Image - Layer 3 Maximum
-             # ...  Reflectivity
-#   91-92,   #      Reserved for internal PUP and RPG Use
-    93,      # 35   ITWS Digital Base       Radial Image
-             # ...  Velocity
-    94,      # 1    Base Reflectivity Data  Radial Image
-             # ...  Array
-#   95,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-             # ...  Edited for AP
-#   96,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-             # ...  Edited for AP
-#   97,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-             # ...  Edited for AP
-#   98,      # 6    Composite Reflectivity  Raster Image/Nongeographic Alpha
-             # ...  Edited for AP
-    99,      # 2    Base Velocity Data      Radial Image
-             # ...  Array
-#   100,     #      Site Adaptable parameters for VAD Wind Profile (Product 48)
-#   101,     #      Storm Track             Alphanumeric Block
-#   102,     #      Hail Index              Alphanumeric Block
-#   103,     #      Spare
-#   104,     #      TVS                     Alphanumeric Block
-#   105,     #      Site Adaptable Parameters for Combined Shear
-#   106,     #      Spare
-#   107,     #      Surface Rainfall (1 hr) Alphanumeric Block
-#   108,     #      Surface Rainfall (3 hr) Alphanumeric Block
-#   109,     #      Storm Total Rainfall    Alphanumeric Block
-             # ...  Accumulation
-#   110,     #      Clutter Likelihood      Alphanumeric Block
-             # ...  Reflectivity
-#   111,     #      Clutter Likelihood      Alphanumeric Block
-             # ...  Doppler
-#   112-131, #      Reserved for Future Products
-    132,     # 36   Clutter Likelihood      Radial Image
-             # ...  Reflectivity
-    133,     # 37   Clutter Likelihood      Radial Image
-             # ...  Doppler
-    134,     # 39   High Resolution VIL     Radial Image
-    135,     # 41   Enhanced Echo Tops      Radial Image
-#   136,     # 38   SuperOb Adaptable       Latitude, Longitude
-             # ...                          (ICD packet code 27)
-    137,     # 40   User Selectable Layer   Radial Image
-             # ...  Composite Reflectivity
-    138,     # 29   Digital Storm Total     Radial Image
-             # ...  Precipitation
-#   139,     #      Spare
-#   140,     # 46   Gust Front MIGFA        Generic Data Format
-#   141,     # 20   Mesocyclone Detection   Geographic and Non-geographic Alpha
-#   143,     # 21   Tornado Vortex          Geographic and Non-geographic Alpha
-             # ...  Signature Rapid Update
-    144,     # 42   One-hour Snow Water     Radial Image
-             # ...  Equivalent
-    145,     # 42   One-hour Snow Depth     Radial Image
-    146,     # 43   Storm Total Snow Water  Radial Image
-             # ...  Equivalent
-    147,     # 43   Storm Total Snow Depth  Radial Image
-#   149,     # 20   Digital Mesocyclone     Generic Data Format
-             # ...  Detection
-    150,     # 44   User Selectable Snow    Radial Image
-             # ...  Water Equivalent
-    151,     # 44   User Selectable Snow    Radial Image
-             # ...  Depth
-#   152,     #      Archive III Status      Product Generic Data Format
-    153,     # 1    Super Resolution        Radial Image
-             # ...  Reflectivity Data Array
-    154,     # 2    Super Resolution        Radial Image
-             # ...  Velocity Data Array
-    155,     # 3    Super Resolution        Radial Image
-             # ...  Spectrum Width Data Array
-#   156,     # 47   Eddy Dissipation Rate   Digital Radial Data Array
-#   157,     # 47   Eddy Dissipation Rate   Digital Radial Data Array
-             # ...  Confidence
-    158,     # 48   Differential            Radial Image
-             # ...  Reflectivity
-    159,     # 48   Digital Differential    Radial Image
-             # ...  Reflectivity
-    160,     # 49   Correlation Coefficient Radial Image
-    161,     # 49   Digital Correlation     Radial Image
-             # ...  Coefficient
-    162,     # 50   Specific Differential   Radial Image
-             # ...  Phase
-    163,     # 50   Digital Specific        Radial Image
-             # ...  Differential Phase
-    164,     # 51   Hydrometeor             Radial Image
-             # ...  Classification
-    165,     # 51   Digital Hydrometeor     Radial Image
-             # ...  Classification
-#   166,     # 52   Melting Layer           Linked Contour Vectors/
-             # ...                          Set Color Level
-    169,     # 53   One Hour Accumulation   Radial Image
-    170,     # 54   Digital Accumulation    Radial Image
-             # ...  Array
-    171,     # 55   Storm Total             Radial Image
-             # ...  Accumulation
-    172,     # 56   Digital Storm Total     Radial Image
-             # ...  Accumulation
-    173,     # 57   Digital User-Selectable Radial Image
-             # ...  Accumulation
-    174,     # 58   Digital One-Hour        Radial Image
-             # ...  Difference Accumulation
-    175,     # 59   Digital Storm Total     Radial Image
-             # ...  Difference Accumulation
-#   176,     # 60   Digital Instantaneous   Generic Radial Product Format
-             # ...  Precipitation Rate
-    177,     # 51   Hybrid Hydrometeor      Radial Image
-             # ...  Classification
-#   178-193, #      Reserved for Future Products
-    194,     # 1    Base Reflectivity Data  Radial Image
-             # ...  Array (DoD Version)
-    195,     # 61   Digital Reflectivity,   Radial Image
-             # ..   DQA-Edited Data Array
-#   196-198, #      Reserved for Future Products
-    199,     # 2    Base Velocity Data      Radial Image
-             # ...  Array (DoD Version)
-#   200-210, #      Reserved for Future Products
-#   211-220, #      Reserved for Future Products
-#   221-230, #      Reserved for Future Products
-#   231-240, #      Reserved for Future Products
-#   241-250, #      Reserved for Future Products
-#   251-260, #      Reserved for Future Products
-#   261-270, #      Reserved for Future Products
-#   271-280, #      Reserved for Future Products
-#   281-290, #      Reserved for Future Products
-#   291-296, #      Reserved for Internal RPG Use.
-#   297-299, #      Reserved for Internal RPG Use.
-
-# TDWR products
-    186,     # 1    Base Reflectivity       Radial Image
-    187,     # 1    Base Reflectivity       Radial Image
-    180,     # 1    Base Reflectivity       Radial Image
-    181,     # 1    Base Reflectivity       Radial Image
-    182,     # 2    Base Velocity           Radial Image
-    183,     # 2    Base Velocity           Radial Image
-    185,     # 5    Base Spectrum Width     Radial Image
-    137,     # 40   User Select. Lay Com.   Radial Image
+    19,     # Base Reflectivity
+    20,     # Base Reflectivity
+    25,     # Base Velocity
+    27,     # Base Velocity
+    28,     # Base Spectrum Width
+    30,     # Base Spectrum Width
+    32,     # Digital Hybrid Scan
+    34,     # Clutter Filter Control
+    56,     # Storm Relative Mean
+            # Radial Velocity
+    78,     # Surface Rainfall Accum.
+            # (1 hr)
+    79,     # Surface Rainfall Accum.
+            # (3 hr)
+    80,     # Storm Total Rainfall
+            # Accumulation
+    94,     # Base Reflectivity Data
+            # Array
+    99,     # Base Velocity Data
+            # Array
+    134,    # High Resolution VIL
+    135,    # Enhanced Echo Tops
+    138,    # Digital Storm Total
+            # Precipitation
+    159,    # Digital Differential
+            # Reflectivity
+    161,    # Digital Correlation
+            # Coefficient
+    163,    # Digital Specific
+            # Differential Phase
+    165,    # Digital Hydrometeor
+            # Classification
+    169,    # One Hour Accumulation
+    170,    # Digital Accumulation
+            # Array
+    171,    # Storm Total
+            # Accumulation
+    172,    # Digital Storm Total
+            # Accumulation
+    173,    # Digital User-Selectable
+            # Accumulation
+    174,    # Digital One-Hour
+            # Difference Accumulation
+    175,    # Digital Storm Total
+            # Difference Accumulation
+    177,    # Hybrid Hydrometeor
+            # Classification
+    181,    # Base Reflectivity
+    182,    # Base Velocity
+    186,    # Base Reflectivity
 ]
+
+# It should be possible to add support for these NEXRAD Level 3 products
+# as they are of Radial Image message format.  No examples of these files
+# could be found to test on so support does not exist yet in this module.
+#    Code    # Product Name
+#    -----   -----------------------
+#    16,     # Base Reflectivity
+#    17,     # Base Reflectivity
+#    18,     # Base Reflectivity
+#    21,     # Base Reflectivity
+#    22,     # Base Velocity
+#    23,     # Base Velocity
+#    24,     # Base Velocity
+#    26,     # Base Velocity
+#    29,     # Base Spectrum Width
+#    31,     # User Selectable Storm Total Precipitation Reflectivty
+#    33,     # Hybrid Scan Reflectivty
+#    55,     # Storm Relative Mean Radial Velocity
+#    93,     # ITWS Digital Base Velocity
+#    132,    # Clutter Likelihood Reflectivity
+#    133,    # Clutter Likelihood Doppler
+#    137,    # User Selectable Layer Composite Reflectivity
+#    144,    # One-hour Snow Water Equivalent
+#    145,    # One-hour Snow Depth
+#    146,    # Storm Total Snow Water Equivalent
+#    147,    # Storm Total Snow Depth
+#    150,    # User Selectable Snow Water Equivalent
+#    151,    # User Selectable Snow Depth
+#    153,    # Super Resolution Reflectivity Data Array
+#    154,    # Super Resolution Velocity Data Array
+#    155,    # Super Resolution Spectrum Width Data Array
+#    158,    # Differential Reflectivity
+#    160,    # Correlation Coefficient
+#    162,    # Specific Differential Phase
+#    164,    # Hydrometeor Classification
+#    194,    # Base Reflectivity Data Array (DoD Version)
+#    195,    # Digital Reflectivity, DQA-Edited Data Array
+#    199,    # Base Velocity Data Array (DoD Version)
+#    183,    # TDWR Base Velocity
+#    180,    # TDWR Base Reflectivity
+#    185,    # TDWR Base Spectrum Width
+#    187,    # TDWR Base Reflectivity
+
+# No support for these NEXRAD Level 3 products is planned as they
+# do not have a Radial Image message format.
+
+#   Code    # Product Name             Message format
+#   -----   -----------------------    ---------------
+#   35,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#   36,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#   37,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#   38,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#   39,     # Spare
+#   40,     # Spare
+#   41,     # Echo Tops               Raster Image
+#   42,     # Spare
+#   43,     # Spare
+#   44,     # Spare
+#   45,     # Spare
+#   46,     # Spare
+#   47,     # Spare
+#   48,     # VAD Wind Profile        Non-geographic Alphanumeric
+#   49,     # Spare
+#   50,     # Cross Section           Raster Image (Reflectivity)
+#           # (Reflectivity)
+#   51,     # Cross Section           Raster Image (Velocity)
+#           # (Velocity)
+#   52,     # Spare
+#   53,     # Spare
+#   54,     # Reserved
+#   57,     # Vertically Integrated   Raster Image
+#           # Liquid
+#   58,     # Storm Tracking          Non-geographic Alpha
+#           # Information
+#   59,     # Hail Index              Non-geographic Alpha
+#   60,     # Spare
+#   61,     # Tornado Vortex          Geographic and Non-geographic
+#           # Signature               Alphanumeric
+#   62,     # Storm Structure         Alphanumeric
+#   63,     # Layer Composite         Raster Image (Layer 1 Average)
+#           # Reflectivity
+#   64,     # Layer Composite         Raster Image (Layer 2 Average)
+#           # Reflectivity
+#   65,     # Layer Composite         Raster Image (Layer 1 Maximum)
+#           # Reflectivity
+#   66,     # Layer Composite         Raster Image (Layer 2 Maximum)
+#           # Reflectivity
+#   67,     # Layer Composite         Raster Image
+#           # Reflectivity - AP Removed
+#   68,     # Spare
+#   69,     # Spare
+#   70,     # Spare
+#   71,     # Spare
+#   72,     # Spare
+#   73,     # User Alert Message      Alphanumeric
+#   74,     # Radar Coded Message     Alphanumeric
+#   75,     # Free Text Message       Alphanumeric
+#   76,     # Reserved for internal PUP use.
+#   81,     # Hourly Digital          Raster Image / Alphanumeric
+#           # Precipitation Array
+#   82,     # Supplemental            Alphanumeric
+#           # Precipitation Data
+#   83,     # Spare
+#   84,     # Velocity Azimuth        Non-geographic Alphanumeric
+#           # Display
+#   85,     # Cross Section           Raster Image (Reflectivity)
+#           # Reflectivity
+#   86,     # Cross Section Velocity  Raster Image (Velocity)
+#   87,     # Spare
+#   88,     # Spare
+#   89,     # Layer Composite         Raster Image - Layer 3 Average
+#           # Reflectivity
+#   90,     # Layer Composite         Raster Image - Layer 3 Maximum
+#           # Reflectivity
+#   91-92,  # Reserved for internal PUP and RPG Use
+#   95,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#           # Edited for AP
+#   96,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#           # Edited for AP
+#   97,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#           # Edited for AP
+#   98,     # Composite Reflectivity  Raster Image/Nongeographic Alpha
+#           # Edited for AP
+#   100,    # Site Adaptable parameters for VAD Wind Profile (Product 48)
+#   101,    # Storm Track             Alphanumeric Block
+#   102,    # Hail Index              Alphanumeric Block
+#   103,    # Spare
+#   104,    # TVS                     Alphanumeric Block
+#   105,    # Site Adaptable Parameters for Combined Shear
+#   106,    # Spare
+#   107,    # Surface Rainfall (1 hr) Alphanumeric Block
+#   108,    # Surface Rainfall (3 hr) Alphanumeric Block
+#   109,    # Storm Total Rainfall    Alphanumeric Block
+#           # Accumulation
+#   110,    # Clutter Likelihood      Alphanumeric Block
+#           # Reflectivity
+#   111,    # Clutter Likelihood      Alphanumeric Block
+#           # Doppler
+#   112-131,# Reserved for Future Products
+#   136,    # SuperOb Adaptable       Latitude, Longitude
+#           #                         (ICD packet code 27)
+#   139,    # Spare
+#   140,    # Gust Front MIGFA        Generic Data Format
+#   141,    # Mesocyclone Detection   Geographic and Non-geographic Alpha
+#   143,    # Tornado Vortex          Geographic and Non-geographic Alpha
+#           # Signature Rapid Update
+#   149,    # Digital Mesocyclone     Generic Data Format
+#           # Detection
+#   152,    # Archive III Status      Product Generic Data Format
+#   156,    # Eddy Dissipation Rate   Digital Radial Data Array
+#   157,    # Eddy Dissipation Rate   Digital Radial Data Array
+#           # Confidence
+#   166,    # Melting Layer           Linked Contour Vectors/
+#           #                         Set Color Level
+#   176,    # Digital Instantaneous   Generic Radial Product Format
+#           # Precipitation Rate
+#   178-193,# Reserved for Future Products
+#   196-198,# Reserved for Future Products
+#   200-210,# Reserved for Future Products
+#   211-220,# Reserved for Future Products
+#   221-230,# Reserved for Future Products
+#   231-240,# Reserved for Future Products
+#   241-250,# Reserved for Future Products
+#   251-260,# Reserved for Future Products
+#   261-270,# Reserved for Future Products
+#   271-280,# Reserved for Future Products
+#   281-290,# Reserved for Future Products
+#   291-296,# Reserved for Internal RPG Use.
+#   297-299,# Reserved for Internal RPG Use.
