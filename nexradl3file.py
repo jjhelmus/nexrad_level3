@@ -242,8 +242,39 @@ class NexradLevel3File():
         elif msg_code in [34]:
             # XXX unknown units
             return np.ma.masked_array(self.raw_data.copy())
+        elif msg_code in [134]:
+
+            hw31, hw32, hw33, hw34, hw35 = np.fromstring(
+                self.prod_descr['threshold_data'][:10], '>i2')
+            linear_scale = _int16_to_float16(hw31)
+            linear_offset = _int16_to_float16(hw32)
+            log_start = hw33
+            log_scale = _int16_to_float16(hw34)
+            log_offset = _int16_to_float16(hw35)
+
+            # linear scale data
+            data = np.zeros(self.raw_data.shape, dtype=np.float32)
+            s = self.raw_data < log_start
+            data[s] = ((self.raw_data[s] - linear_offset) / (linear_scale))
+            # log scale data
+            s = self.raw_data >= log_start
+            data[s] = np.exp((self.raw_data[s] - log_offset) / (log_scale))
+            mdata = np.ma.masked_array(data, mask=self.raw_data < 2)
+            return mdata
         else:
             raise NotImplementedError
+
+
+def _int16_to_float16(v):
+    """ Convert a 16 bit interger into a 16 bit float. """
+    # NEXRAD Level III float16 format defined on page 3-33.
+    s = (v & 0b1000000000000000) / 0b1000000000000000
+    e = (v & 0b0111110000000000) / 0b0000010000000000
+    f = (v & 0b0000001111111111)
+    if e == 0:
+        return (-1)**s * 2 * (0 + (f/2**10.))
+    else:
+        return (-1)**s * 2**(e-16) * (1 + f/2**10.)
 
 
 def datetime_from_mdate_mtime(mdate, mtime):

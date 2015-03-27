@@ -63,7 +63,7 @@ NFILES = [
     # 132 : XXX need sample file
     # 133 : XXX need sample file
     # 134 : DVL TODO See note on page 3-33
-    #('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'DigitalIntegLiquid'),
+    ('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'DigitalIntegLiquid'),
     # 135 : EET TODO See note on page 3-34
     #('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'EnhancedEchoTop'),
 
