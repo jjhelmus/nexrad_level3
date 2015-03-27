@@ -44,7 +44,7 @@ NFILES = [
     ('sample_data/KBMX_SDUS54_N0UBMX_201501020205', 'BaseVelocityDV'),
     # 134 : DVL
     ('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'DigitalIntegLiquid'),
-    # 135 : EET TODO See note on page 3-34
+    # 135 : EET
     ('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'EnhancedEchoTop'),
     # 138 : DSP - Works, but converted marks a gate (161, 5) as invalid whe
     # the value is in fact valid XXX
@@ -64,8 +64,8 @@ NFILES = [
     ('sample_data/KBMX_SDUS34_PTABMX_201501020205', 'StormTotalAccumulation'),
     # 172 : DTA
     ('sample_data/KBMX_SDUS84_DTABMX_201501020205', 'DigitalStormTotalAccumulation'),
-    # 173 : DU3 TODO
-    #('sample_data/KBMX_SDUS84_DU3BMX_201501020205', 'Accumulation3Hour'),
+    # 173 : DU3
+    ('sample_data/KBMX_SDUS84_DU3BMX_201501020205', 'Accumulation3Hour'),
     # 174 : DOD
     ('sample_data/KBMX_SDUS84_DODBMX_201501020205', 'Digital1HourDifferenceAccumulation'),
     # 175 : DSD
@@ -275,7 +275,7 @@ def check_data(nfile, dset, field):
     var = dset.variables[field][:]
     mvar = np.ma.masked_invalid(var)
     data = nfile.get_data()
-    assert np.ma.allclose(mvar, data, atol=0.002)
+    assert np.ma.allclose(mvar, data, atol=0.002, rtol=0.008)
     assert np.all(np.ma.getmaskarray(mvar) == np.ma.getmaskarray(data))
 
 
