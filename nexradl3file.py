@@ -1,3 +1,4 @@
+""" Module for reading data from NEXRAD Level 3 files. """
 
 import bz2
 import datetime
@@ -6,7 +7,7 @@ import struct
 import numpy as np
 
 
-class NexradLevel3File():
+class NexradLevel3File(object):
     """
     A Class for accessing data in NEXRAD Level III (3) files.
 
@@ -34,9 +35,9 @@ class NexradLevel3File():
     def __init__(self, filename):
         """ initalize the object. """
         # read the entire file into memory
-        fh = open(filename, 'rb')
-        buf = fh.read()     # string buffer containing file data
-        fh.close()
+        fhandle = open(filename, 'rb')
+        buf = fhandle.read()    # string buffer containing file data
+        fhandle.close()
 
         # Text header
         # Format of Text header is SDUSXX KYYYY DDHHMM\r\r\nAAABBB\r\r\n
@@ -61,6 +62,10 @@ class NexradLevel3File():
         else:
             buf2 = buf[bpos:]
 
+        self._read_symbology_block(buf2)
+
+    def _read_symbology_block(self, buf2):
+        """ Read symbology block. """
         # Read and decode symbology header
         self.symbology_header = _unpack_from_buf(buf2, 0, SYMBOLOGY_HEADER)
 
@@ -71,36 +76,28 @@ class NexradLevel3File():
         self.radial_headers = []
         nbins = self.packet_header['nbins']
         nradials = self.packet_header['nradials']
+        nbytes = _unpack_from_buf(buf2, 30, RADIAL_HEADER)['nbytes']
+        if packet_code == 16 and nbytes != nbins:
+            nbins = nbytes  # sometimes these do not match, use nbytes
+        self.raw_data = np.empty((nradials, nbins), dtype='uint8')
+        pos = 30
 
-        if packet_code == 16:
-            first_radial_header = _unpack_from_buf(buf2, 30, RADIAL_HEADER)
-            nbytes = first_radial_header['nbytes']
-            if nbins != nbytes:
-                # sometime these do not match, use nbytes
-                nbins = nbytes
-            self.raw_data = np.empty((nradials, nbins), dtype='uint8')
-            pos = 30
-            for i in range(nradials):
-                self.radial_headers.append(_unpack_from_buf(buf2, pos,
-                                           RADIAL_HEADER))
-                pos += 6
-                self.raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
-                pos += self.radial_headers[-1]['nbytes']
-        else:
-            assert packet_code == AF1F
-            self.raw_data = np.empty((nradials, nbins), dtype='uint8')
-            pos = 30
-            for i in range(nradials):
-                radial_header = _unpack_from_buf(buf2, pos, RADIAL_HEADER)
-                pos += 6
-                # decode RLE
+        for radial in self.raw_data:
+            radial_header = _unpack_from_buf(buf2, pos, RADIAL_HEADER)
+            pos += 6
+            if packet_code == 16:
+                radial[:] = np.fromstring(buf2[pos:pos+nbins], '>u1')
+                pos += radial_header['nbytes']
+            else:
+                assert packet_code == AF1F
+                # decode run length encoding
                 rle_size = radial_header['nbytes'] * 2
                 rle = np.fromstring(buf2[pos:pos+rle_size], dtype='>u1')
                 colors = np.bitwise_and(rle, 0b00001111)
                 runs = np.bitwise_and(rle, 0b11110000) / 16
-                self.raw_data[i] = np.repeat(colors, runs)
+                radial[:] = np.repeat(colors, runs)
                 pos += rle_size
-                self.radial_headers.append(radial_header)
+            self.radial_headers.append(radial_header)
 
     def get_location(self):
         """ Return the latitude, longitude and height of the radar. """
@@ -118,18 +115,14 @@ class NexradLevel3File():
         """ Return an array of gate range spacing in meters. """
         nbins = self.raw_data.shape[1]
         first_bin = self.packet_header['first_bin']
-        range_scale = self.packet_header['range_scale']
-        range_resolution = PRODUCT_RANGE_RESOLUTION[self.msg_header['code']]
-        range_scale *= range_resolution
-        msg_code = self.msg_header['code']
-        if msg_code in [134, 135]:
-            range_scale *= 1000.
+        range_scale = (self.packet_header['range_scale'] *
+                       PRODUCT_RANGE_RESOLUTION[self.msg_header['code']])
         return np.arange(nbins, dtype='float32') * range_scale + first_bin
 
     def get_elevation(self):
         """ Return the sweep elevation angle in degrees. """
-        w30 = self.prod_descr['halfwords_30']
-        elevation = struct.unpack('>h', w30)[0] * 0.1
+        hw30 = self.prod_descr['halfwords_30']
+        elevation = struct.unpack('>h', hw30)[0] * 0.1
         return elevation
 
     def get_volume_start_datetime(self):
@@ -140,100 +133,97 @@ class NexradLevel3File():
     def get_data(self):
         """ Return an masked array containing the field data. """
         msg_code = self.msg_header['code']
-        if msg_code in [32, 94, 99, 182, 186]:
-            # scale and mask according to threshold_data
-            # this should be valid for products 32, 94, 153, 194, 195
-            s = self.prod_descr['threshold_data']
-            hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
-            if msg_code in [94, 99, 182, 186]:
-                data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
-            elif msg_code in [32]:
-                data = (self.raw_data) * (hw32/10.) + hw31/10.
+        threshold_data = self.prod_descr['threshold_data']
+
+        if msg_code in _8_OR_16_LEVELS:
+            mdata = self._get_data_8_or_16_levels()
+
+        elif msg_code in [134]:
+            mdata = self._get_data_msg_134()
+
+        elif msg_code in [94, 99, 182, 186]:
+            hw31, hw32 = np.fromstring(threshold_data[:4], '>i2')
+            data = (self.raw_data - 2) * (hw32/10.) + hw31/10.
             mdata = np.ma.array(data, mask=self.raw_data < 2)
-            return mdata
-        elif msg_code in _8_OR_16_LEVELS:
-            # XXX could use some clean up
-            t = np.fromstring(self.prod_descr['threshold_data'], '>B')
-            flags = t[::2]
-            values = t[1::2]
 
-            sign = np.choose(np.bitwise_and(flags, 0x01), [1, -1])
-            bad = (np.bitwise_and(flags, 0x80) == 128)
-            scale = 1.
-            if (flags[0] & 2**5):
-                scale = 1/20.
-            if (flags[0] & 2**4):
-                scale = 1/10.
+        elif msg_code in [32]:
+            hw31, hw32 = np.fromstring(threshold_data[:4], '>i2')
+            data = (self.raw_data) * (hw32/10.) + hw31/10.
+            mdata = np.ma.array(data, mask=self.raw_data < 2)
 
-            data_levels = values * sign * scale
-            data_levels[bad] = -999
-
-            data = np.choose(self.raw_data, data_levels)
-            mdata = np.ma.masked_equal(data, -999)
-            return mdata
         elif msg_code in [138]:
-            s = self.prod_descr['threshold_data']
-            hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
+            hw31, hw32 = np.fromstring(threshold_data[:4], '>i2')
             data = self.raw_data * (hw32/100.) + hw31/100.
             mdata = np.ma.array(data)
-            return mdata
-        elif msg_code in [159, 161, 163, 170, 172, 173, 174, 175]:
-            # scale and mask according to threshold_data
-            # this should be valid for products 159, 161, 163, 170, ...
-            s = self.prod_descr['threshold_data']
-            scale, offset = np.fromstring(s[:8], '>f4')
+
+        elif msg_code in [159, 161, 163]:
+            scale, offset = np.fromstring(threshold_data[:8], '>f4')
             data = (self.raw_data - offset) / (scale)
-            if msg_code in [159, 161, 163]:
-                mdata = np.ma.array(data, mask=self.raw_data < 2)
-            if msg_code in [170, 172, 173, 174, 175]:
-                data *= 0.01    # units are 0.01 inches
-                mdata = np.ma.array(data, mask=self.raw_data < 1)
-            return mdata
+            mdata = np.ma.array(data, mask=self.raw_data < 2)
+
+        elif msg_code in [170, 172, 173, 174, 175]:
+            # units are 0.01 inches
+            scale, offset = np.fromstring(threshold_data[:8], '>f4')
+            data = (self.raw_data - offset) / (scale) * 0.01
+            mdata = np.ma.array(data, mask=self.raw_data < 1)
+
         elif msg_code in [165, 177]:
-            # Correspond to classification in table on page 3-37
+            # Corresponds to classifications in table on page 3-37
             mdata = np.ma.masked_equal(self.raw_data, 0)
-            return mdata
+
         elif msg_code in [34]:
             # There does not seem to be any discussion on what this product
             # contains.
-            return np.ma.masked_array(self.raw_data.copy())
-        elif msg_code in [134]:
+            mdata = np.ma.array(self.raw_data.copy())
 
-            hw31, hw32, hw33, hw34, hw35 = np.fromstring(
-                self.prod_descr['threshold_data'][:10], '>i2')
-            linear_scale = _int16_to_float16(hw31)
-            linear_offset = _int16_to_float16(hw32)
-            log_start = hw33
-            log_scale = _int16_to_float16(hw34)
-            log_offset = _int16_to_float16(hw35)
-
-            # linear scale data
-            data = np.zeros(self.raw_data.shape, dtype=np.float32)
-            s = self.raw_data < log_start
-            data[s] = ((self.raw_data[s] - linear_offset) / (linear_scale))
-            # log scale data
-            s = self.raw_data >= log_start
-            data[s] = np.exp((self.raw_data[s] - log_offset) / (log_scale))
-            mdata = np.ma.masked_array(data, mask=self.raw_data < 2)
-            return mdata
         elif msg_code in [135]:
             mdata = np.ma.array(self.raw_data - 2, mask=self.raw_data <= 1)
             mdata[self.raw_data >= 128] -= 128
-            return mdata.astype('float32')
+
         else:
             raise NotImplementedError
 
+        return mdata.astype('float32')
 
-def _int16_to_float16(v):
-    """ Convert a 16 bit interger into a 16 bit float. """
-    # NEXRAD Level III float16 format defined on page 3-33.
-    s = (v & 0b1000000000000000) / 0b1000000000000000
-    e = (v & 0b0111110000000000) / 0b0000010000000000
-    f = (v & 0b0000001111111111)
-    if e == 0:
-        return (-1)**s * 2 * (0 + (f/2**10.))
-    else:
-        return (-1)**s * 2**(e-16) * (1 + f/2**10.)
+    def _get_data_8_or_16_levels(self):
+        """ Return a masked array for products with 8 or 16 data levels. """
+        thresh = np.fromstring(self.prod_descr['threshold_data'], '>B')
+        flags = thresh[::2]
+        values = thresh[1::2]
+
+        sign = np.choose(np.bitwise_and(flags, 0x01), [1, -1])
+        bad = np.bitwise_and(flags, 0x80) == 128
+        scale = 1.
+        if flags[0] & 2**5:
+            scale = 1/20.
+        if flags[0] & 2**4:
+            scale = 1/10.
+
+        data_levels = values * sign * scale
+        data_levels[bad] = -999     # sentinal for bad data points
+
+        data = np.choose(self.raw_data, data_levels)
+        mdata = np.ma.masked_equal(data, -999)
+        return mdata
+
+    def _get_data_msg_134(self):
+        """ Return a masked array for product with message code 134. """
+        hw31, hw32, hw33, hw34, hw35 = np.fromstring(
+            self.prod_descr['threshold_data'][:10], '>i2')
+        linear_scale = _int16_to_float16(hw31)
+        linear_offset = _int16_to_float16(hw32)
+        log_start = hw33
+        log_scale = _int16_to_float16(hw34)
+        log_offset = _int16_to_float16(hw35)
+        # linear scale data
+        data = np.zeros(self.raw_data.shape, dtype=np.float32)
+        lin = self.raw_data < log_start
+        data[lin] = ((self.raw_data[lin] - linear_offset) / (linear_scale))
+        # log scale data
+        log = self.raw_data >= log_start
+        data[log] = np.exp((self.raw_data[log] - log_offset) / (log_scale))
+        mdata = np.ma.masked_array(data, mask=self.raw_data < 2)
+        return mdata
 
 
 def datetime_from_mdate_mtime(mdate, mtime):
@@ -256,8 +246,8 @@ def _unpack_from_buf(buf, pos, structure):
 def _unpack_structure(string, structure):
     """ Unpack a structure from a string """
     fmt = '>' + ''.join([i[1] for i in structure])  # NEXRAD is big-endian
-    l = struct.unpack(fmt, string)
-    return dict(zip([i[0] for i in structure], l))
+    lst = struct.unpack(fmt, string)
+    return dict(zip([i[0] for i in structure], lst))
 
 
 # NEXRAD Level III file structures, sizes, and static data
@@ -265,6 +255,20 @@ def _unpack_structure(string, structure):
 # "INTERFACE CONTROL DOCUMENT FOR THE RPG TO CLASS 1 USER" RPG Build 13.0
 # Document Number 2620001T
 # Tables and page number refer to those in this document.
+
+
+def _int16_to_float16(val):
+    """ Convert a 16 bit interger into a 16 bit float. """
+    # NEXRAD Level III float16 format defined on page 3-33.
+    # Differs from IEEE 768-2008 format so np.float16 cannot be used.
+    sign = (val & 0b1000000000000000) / 0b1000000000000000
+    exponent = (val & 0b0111110000000000) / 0b0000010000000000
+    fraction = (val & 0b0000001111111111)
+    if exponent == 0:
+        return (-1)**sign * 2 * (0 + (fraction/2**10.))
+    else:
+        return (-1)**sign * 2**(exponent-16) * (1 + fraction/2**10.)
+
 
 _8_OR_16_LEVELS = [19, 20, 25, 27, 28, 30, 56, 78, 79, 80, 169, 171, 181]
 
@@ -283,8 +287,8 @@ PRODUCT_RANGE_RESOLUTION = {
     80: 1.,
     94: 1.,
     99: 0.25,
-    134: 1.,
-    135: 1.,
+    134: 1000.,
+    135: 1000.,
     138: 1.,
     159: 0.25,
     161: 0.25,
