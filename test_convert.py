@@ -8,11 +8,18 @@
 import os.path
 
 import numpy as np
+from numpy.testing import assert_raises
 import netCDF4
 
 import nexradl3file
 
-NFILES = [
+# Test setup, these options enable/disable groups of tests to be run.
+TEST_ONE_FILE = True    # One file per supported message code
+TEST_ADDITION = True    # Additional supported files not in above.
+TEST_NOSUPPORT = True
+
+# One file for each supported NEXRAD Level 3 message code.
+ONE_FILE_PER_SUPPORTED_MSG_CODE = [
     # 19 : N0R-N3R
     ('sample_data/KBMX_SDUS54_N0RBMX_201501020205', 'BaseReflectivity'),
     # 20 : N0Z
@@ -77,121 +84,198 @@ NFILES = [
     ('sample_data/KLOT_SDUS53_TR0ORD_201501150004', 'BaseReflectivity'),
     # 182 : TV0-TV2
     ('sample_data/KLOT_SDUS53_TV0ORD_201501150004', 'RadialVelocity'),
+]
+ADDITIONAL_SUPPORTED_FILES = [
 
-    # Unsorted
-    #('sample_data/KBMX_NXUS64_GSMBMX_201501020258', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N1QBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N1SBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N1UBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N2QBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N2SBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N2UBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N3QBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS24_N3UBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS34_N3SBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS34_NMDBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS34_NSTBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS34_NVWBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS44_RCMBMX_201501020217', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_DPABMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_NCRBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS54_NVLBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NCZBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NHIBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NHLBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NLABMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NLLBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NMLBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NSSBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_NTVBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS64_SPDBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS74_NETBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_DPRBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N0MBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N1CBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N1HBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N1KBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N1MBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N1XBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N2CBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N2HBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N2KBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N2MBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N2XBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N3CBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N3HBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N3KBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N3MBMX_201501020205', 'BaseReflectivity'),
-    #('sample_data/KBMX_SDUS84_N3XBMX_201501020205', 'BaseReflectivity'),
+    # 19 : N?R
+    ('sample_data/KOKX_SDUS51_N0ROKX_201108280702', 'BaseReflectivity'),
+    # 20 : N0Z
+    ('sample_data/KOKX_SDUS71_N0ZOKX_201108280702', 'BaseReflectivity248'),
+    # 27 : N?V
+    ('sample_data/KOKX_SDUS51_N0VOKX_201108280702', 'RadialVelocity'),
+    # 28 : NSP
+    ('sample_data/KOKX_SDUS61_NSPOKX_201108280702', 'SpectrumWidth'),
+    # 30 : NSW
+    ('sample_data/KOKX_SDUS61_NSWOKX_201108280702', 'SpectrumWidth'),
+    # 32 : DHR
+    ('sample_data/KOKX_SDUS51_DHROKX_201108280702', 'DigitalHybridReflectivity'),
+    # 34 : NC?
+    ('sample_data/KAMA_SDUS64_NC2AMA_201502150549', 'error'),
+    ('sample_data/KAMA_SDUS64_NC3AMA_201502150549', 'error'),
+    ('sample_data/KAMA_SDUS64_NC4AMA_201502150549', 'error'),
+    ('sample_data/KAMA_SDUS64_NC5AMA_201502150549', 'error'),
+    # 56: N?S
+    ('sample_data/KBMX_SDUS24_N1SBMX_201501020205', 'StormMeanVelocity'),
+    ('sample_data/KBMX_SDUS24_N2SBMX_201501020205', 'StormMeanVelocity'),
+    ('sample_data/KBMX_SDUS34_N3SBMX_201501020205', 'StormMeanVelocity'),
+    ('sample_data/KOKX_SDUS51_N0SOKX_201108280702', 'StormMeanVelocity'),
+    ('sample_data/KOKX_SDUS21_N1SOKX_201108280702', 'StormMeanVelocity'),
+    ('sample_data/KOKX_SDUS21_N2SOKX_201108280702', 'StormMeanVelocity'),
+    ('sample_data/KOKX_SDUS31_N3SOKX_201108280702', 'StormMeanVelocity'),
+    # 78 : N1P
+    ('sample_data/KOKX_SDUS31_N1POKX_201108280702', 'Precip1hr'),
+    # 79 : N3P
+    ('sample_data/KOKX_SDUS61_N3POKX_201108280711', 'Precip3hr'),
+    # 80 NTP
+    ('sample_data/KOKX_SDUS51_NTPOKX_201108280702', 'PrecipAccum'),
+    # 94 : N?Q
+    ('sample_data/KBMX_SDUS24_N1QBMX_201501020205', 'BaseReflectivityDR'),
+    ('sample_data/KBMX_SDUS24_N2QBMX_201501020205', 'BaseReflectivityDR'),
+    ('sample_data/KBMX_SDUS24_N3QBMX_201501020205', 'BaseReflectivityDR'),
+    ('sample_data/KOKX_SDUS51_N0QOKX_201108280702', 'BaseReflectivityDR'),
+    ('sample_data/KOKX_SDUS21_N1QOKX_201108280702', 'BaseReflectivityDR'),
+    ('sample_data/KOKX_SDUS21_N2QOKX_201108280702', 'BaseReflectivityDR'),
+    ('sample_data/KOKX_SDUS21_N3QOKX_201108280702', 'BaseReflectivityDR'),
+    ('sample_data/KOKX_SDUS51_NAQOKX_201108280702', 'BaseReflectivityDR'),
+    ('sample_data/KOKX_SDUS21_NBQOKX_201108280702', 'BaseReflectivityDR'),
+    # 99: N?U
+    ('sample_data/KBMX_SDUS24_N1UBMX_201501020205', 'BaseVelocityDV'),
+    ('sample_data/KBMX_SDUS24_N2UBMX_201501020205', 'BaseVelocityDV'),
+    ('sample_data/KBMX_SDUS24_N3UBMX_201501020205', 'BaseVelocityDV'),
+    ('sample_data/KOKX_SDUS51_N0UOKX_201108280702', 'BaseVelocityDV'),
+    ('sample_data/KOKX_SDUS21_N1UOKX_201108280702', 'BaseVelocityDV'),
+    ('sample_data/KOKX_SDUS21_N2UOKX_201108280702', 'BaseVelocityDV'),
+    ('sample_data/KOKX_SDUS21_N3UOKX_201108280702', 'BaseVelocityDV'),
+    ('sample_data/KOKX_SDUS51_NAUOKX_201108280702', 'BaseVelocityDV'),
+    ('sample_data/KOKX_SDUS21_NBUOKX_201108280702', 'BaseVelocityDV'),
+    # 134 : DVL
+    ('sample_data/KOKX_SDUS51_DVLOKX_201108280702', 'DigitalIntegLiquid'),
+    # 135 : EET
+    ('sample_data/KOKX_SDUS71_EETOKX_201108280702', 'EnhancedEchoTop'),
+    # 138 : DSP
+    ('sample_data/KOKX_SDUS51_DSPOKX_201108280702', 'DigitalPrecip'),
+    # 159: N?X
+    ('sample_data/KBMX_SDUS84_N1XBMX_201501020205', 'DifferentialReflectivity'),
+    ('sample_data/KBMX_SDUS84_N2XBMX_201501020205', 'DifferentialReflectivity'),
+    ('sample_data/KBMX_SDUS84_N3XBMX_201501020205', 'DifferentialReflectivity'),
+    # 161: N?C
+    ('sample_data/KBMX_SDUS84_N1CBMX_201501020205', 'CorrelationCoefficient'),
+    ('sample_data/KBMX_SDUS84_N2CBMX_201501020205', 'CorrelationCoefficient'),
+    ('sample_data/KBMX_SDUS84_N3CBMX_201501020205', 'CorrelationCoefficient'),
+    # 163: N?K
+    ('sample_data/KBMX_SDUS84_N1KBMX_201501020205', 'DifferentialPhase'),
+    ('sample_data/KBMX_SDUS84_N2KBMX_201501020205', 'DifferentialPhase'),
+    ('sample_data/KBMX_SDUS84_N3KBMX_201501020205', 'DifferentialPhase'),
+    # 165: N?H
+    ('sample_data/KBMX_SDUS84_N1HBMX_201501020205', 'HydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_N2HBMX_201501020205', 'HydrometeorClassification'),
+    ('sample_data/KBMX_SDUS84_N3HBMX_201501020205', 'HydrometeorClassification'),
+    # 181 TR0
+    ('sample_data/KLOT_SDUS23_TR1ORD_201501150004', 'BaseReflectivity'),
+    ('sample_data/KLOT_SDUS23_TR2ORD_201501150004', 'BaseReflectivity'),
+    # 182 : TV?
+    ('sample_data/KLOT_SDUS73_TV1ORD_201501150004', 'RadialVelocity'),
+    ('sample_data/KLOT_SDUS73_TV2ORD_201501150004', 'RadialVelocity'),
+]
 
-    #('sample_data/KOKX_NXUS61_GSMOKX_201108280700', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N1QOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N1SOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N1UOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N2QOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N2SOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N2UOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N3QOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_N3UOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_NBQOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS21_NBUOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS31_N1POKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS31_N3SOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS31_NMDOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS31_NSTOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS31_NVWOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS41_RCMOKX_201108280716', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS41_RSLOKX_201108280758', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_DHROKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_DPAOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_DSPOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_DVLOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_N0QOKX_201108280702', 'BaseReflectivityDR'),
-    #('sample_data/KOKX_SDUS51_N0ROKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_N0SOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_N0UOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_N0VOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_NAQOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_NAUOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_NCROKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_NTPOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS51_NVLOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_N3POKX_201108280711', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NCZOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NHIOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NHLOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NLAOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NLLOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NMLOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NSPOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NSSOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NSWOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_NTVOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS61_SPDOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS71_EETOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS71_N0ZOKX_201108280702', 'BaseReflectivity'),
-    #('sample_data/KOKX_SDUS71_NETOKX_201108280702', 'BaseReflectivity'),
+NOT_SUPPORTED_FILES = [
+    # 2 : GSM
+    'sample_data/KBMX_NXUS64_GSMBMX_201501020258',
+    'sample_data/KOKX_NXUS61_GSMOKX_201108280700',
 
+    # 37 : NCR
+    'sample_data/KBMX_SDUS54_NCRBMX_201501020205',
+    'sample_data/KOKX_SDUS51_NCROKX_201108280702',
 
-    #('sample_data/KLOT_SDUS23_TR1ORD_201501150004', 'BaseReflectivity'),
-    #('sample_data/KLOT_SDUS23_TR2ORD_201501150004', 'BaseReflectivity'),
-    #('sample_data/KLOT_SDUS73_TV1ORD_201501150004', 'BaseReflectivity'),
-    #('sample_data/KLOT_SDUS73_TV2ORD_201501150004', 'BaseReflectivity'),
+    # 38 : NCZ
+    'sample_data/KBMX_SDUS64_NCZBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NCZOKX_201108280702',
 
-    #('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
-    #('sample_data/KAMA_SDUS64_NC2AMA_201502150549', 'error'),
-    #('sample_data/KAMA_SDUS64_NC3AMA_201502150549', 'error'),
-    #('sample_data/KAMA_SDUS64_NC4AMA_201502150549', 'error'),
-    #('sample_data/KAMA_SDUS64_NC5AMA_201502150549', 'error'),
+    # 41 : NET
+    'sample_data/KBMX_SDUS74_NETBMX_201501020205',
+    'sample_data/KOKX_SDUS71_NETOKX_201108280702',
+
+    # 48 : NVD
+    'sample_data/KBMX_SDUS34_NVWBMX_201501020205',
+    'sample_data/KOKX_SDUS31_NVWOKX_201108280702',
+
+    # 57 : NVL
+    'sample_data/KBMX_SDUS54_NVLBMX_201501020205',
+    'sample_data/KOKX_SDUS51_NVLOKX_201108280702',
+
+    # 58 : NST
+    'sample_data/KBMX_SDUS34_NSTBMX_201501020205',
+    'sample_data/KOKX_SDUS31_NSTOKX_201108280702',
+
+    # 59 : NHI
+    'sample_data/KBMX_SDUS64_NHIBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NHIOKX_201108280702',
+
+    # 61 : NTV
+    'sample_data/KBMX_SDUS64_NTVBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NTVOKX_201108280702',
+
+    # 62 : NSS
+    'sample_data/KBMX_SDUS64_NSSBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NSSOKX_201108280702',
+
+    # 65 : NLL
+    'sample_data/KBMX_SDUS64_NLLBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NLLOKX_201108280702',
+
+    # 66 : NML
+    'sample_data/KBMX_SDUS64_NMLBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NMLOKX_201108280702',
+
+    # 67 : NLA
+    'sample_data/KBMX_SDUS64_NLABMX_201501020205',
+    'sample_data/KOKX_SDUS61_NLAOKX_201108280702',
+
+    # 74 : RCM
+    'sample_data/KBMX_SDUS44_RCMBMX_201501020217',
+    'sample_data/KOKX_SDUS41_RCMOKX_201108280716',
+
+    # 81 : DPA
+    'sample_data/KBMX_SDUS54_DPABMX_201501020205',
+    'sample_data/KOKX_SDUS51_DPAOKX_201108280702',
+
+    # 82 : SPD
+    'sample_data/KBMX_SDUS64_SPDBMX_201501020205',
+    'sample_data/KOKX_SDUS61_SPDOKX_201108280702',
+
+    # 90 : NHL
+    'sample_data/KBMX_SDUS64_NHLBMX_201501020205',
+    'sample_data/KOKX_SDUS61_NHLOKX_201108280702',
+
+    # 141 : NMD
+    'sample_data/KBMX_SDUS34_NMDBMX_201501020205',
+    'sample_data/KOKX_SDUS31_NMDOKX_201108280702',
+
+    # 152: RSL
+    'sample_data/KOKX_SDUS41_RSLOKX_201108280758',
+
+    # 166: N?M
+    'sample_data/KBMX_SDUS84_N0MBMX_201501020205',
+    'sample_data/KBMX_SDUS84_N1MBMX_201501020205',
+    'sample_data/KBMX_SDUS84_N2MBMX_201501020205',
+    'sample_data/KBMX_SDUS84_N3MBMX_201501020205',
+
+    # 176 : DPR
+    'sample_data/KBMX_SDUS84_DPRBMX_201501020205',
 
 ]
 
 
+
 def test_files():
-    for n3file, field in NFILES:
-        head, tail = os.path.split(n3file)
-        check_pair.description = 'Checking ' + tail
-        yield check_pair, n3file, field
+    if TEST_ONE_FILE:
+        for n3file, field in ONE_FILE_PER_SUPPORTED_MSG_CODE:
+            head, tail = os.path.split(n3file)
+            check_pair.description = 'Checking ' + tail
+            yield check_pair, n3file, field
+    if TEST_ADDITION:
+        for n3file, field in ADDITIONAL_SUPPORTED_FILES:
+            head, tail = os.path.split(n3file)
+            check_pair.description = 'Checking ' + tail
+            yield check_pair, n3file, field
+    if TEST_NOSUPPORT:
+        for n3file in NOT_SUPPORTED_FILES:
+            head, tail = os.path.split(n3file)
+            check_raises.description = 'Checking ' + tail
+            yield check_raises, n3file
+
+def check_raises(n3file):
+    assert_raises(NotImplementedError, nexradl3file.NexradLevel3File, n3file)
 
 
 def check_pair(n3file, field):

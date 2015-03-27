@@ -2,6 +2,7 @@
 import struct
 import datetime
 import bz2
+import warnings
 
 import numpy as np
 
@@ -110,8 +111,14 @@ class NexradLevel3File():
         if packet_code == 16:
             self.packet_header = _unpack_from_buf(buf2, 16,
                                                   PACKET_TYPE16_HEADER)
+            first_radial_header = _unpack_from_buf(
+                buf2, 30, PACKET_TYPE16_RADIAL_HEADER)
             rh = []
             nbins = self.packet_header['nbins']
+            nbytes= first_radial_header['nbytes']
+            if nbins != nbytes:
+                # sometime these do not match, use nbytes
+                nbins = nbytes
             nradials = self.packet_header['nradials']
             raw_data = np.empty((nradials, nbins), dtype='uint8')
             pos = 30
@@ -120,7 +127,7 @@ class NexradLevel3File():
                                            PACKET_TYPE16_RADIAL_HEADER))
                 pos += 6
                 raw_data[i] = np.fromstring(buf2[pos:pos+nbins], '>u1')
-                pos += nbins
+                pos += rh[-1]['nbytes']
             self.radial_headers = rh
             self.raw_data = raw_data
         else:
@@ -162,7 +169,7 @@ class NexradLevel3File():
 
     def get_range(self):
         """ Return an array of gate range spacing in meters. """
-        nbins = self.packet_header['nbins']
+        nbins = self.raw_data.shape[1]
         first_bin = self.packet_header['first_bin']
         range_scale = self.packet_header['range_scale']
         range_resolution = PRODUCT_RANGE_RESOLUTION[self.msg_header['code']]
@@ -218,7 +225,9 @@ class NexradLevel3File():
             mdata = np.ma.masked_equal(data, -999)
             return mdata
         elif msg_code in [138]:
-            data = self.raw_data * 0.01
+            s = self.prod_descr['threshold_data']
+            hw31, hw32, hw33 = np.fromstring(s[:6], '>i2')
+            data = self.raw_data * (hw32/100.) + hw31/100.
             mdata = np.ma.array(data)
             return mdata
         elif msg_code in [159, 161, 163, 170, 172, 173, 174, 175]:
