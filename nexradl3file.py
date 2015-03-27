@@ -16,7 +16,7 @@ PRODUCT_RANGE_RESOLUTION = {
     28: 0.25,
     30: 1.,
     32: 1.,
-    34: 1.,     # Java uses 0.
+    34: 1.,
     56: 1.,
     78: 1.,
     79: 1.,
@@ -221,26 +221,25 @@ class NexradLevel3File():
             data = self.raw_data * 0.01
             mdata = np.ma.array(data)
             return mdata
-        elif msg_code in [159, 161, 163, 170, 171, 172, 173, 174, 175]:
+        elif msg_code in [159, 161, 163, 170, 172, 173, 174, 175]:
             # scale and mask according to threshold_data
             # this should be valid for products 159, 161, 163, 170, ...
             s = self.prod_descr['threshold_data']
             scale, offset = np.fromstring(s[:8], '>f4')
             data = (self.raw_data - offset) / (scale)
             if msg_code in [159, 161, 163]:
-                # XXX this should be < 2, but Java masked = 2
-                mdata = np.ma.array(data, mask=self.raw_data <= 2)
-            if msg_code in [170, 171, 172, 173, 174, 175]:
+                mdata = np.ma.array(data, mask=self.raw_data < 2)
+            if msg_code in [170, 172, 173, 174, 175]:
                 data *= 0.01    # units are 0.01 inches
-                # XXX this should be < 1, but Java masked = 1
-                mdata = np.ma.array(data, mask=self.raw_data <= 1)
+                mdata = np.ma.array(data, mask=self.raw_data < 1)
             return mdata
         elif msg_code in [165, 177]:
             # Correspond to classification in table on page 3-37
             mdata = np.ma.masked_equal(self.raw_data, 0)
             return mdata
         elif msg_code in [34]:
-            # XXX unknown units
+            # There does not seem to be any discussion on what this product
+            # contains.
             return np.ma.masked_array(self.raw_data.copy())
         elif msg_code in [134]:
 
@@ -304,31 +303,6 @@ def _unpack_structure(string, structure):
     l = struct.unpack(fmt, string)
     return dict(zip([i[0] for i in structure], l))
 
-
-def _get_product_parameters(code, prod_descr):
-    """ """
-
-    # extract halfwords 27, 28, 30, 47-53.
-    s = prod_descr['halfwords_27_28']
-    w27, w28 = s[0:2], s[2:4]
-    w30 = prod_descr['halfwords_30']
-    s = prod_descr['halfwords_47_53']
-    w47, w48, w49, w50, w51, w52, w53 = [s[2*i:2*i+2] for i in range(7)]
-
-    # Table V.
-    # Product Dependent Halfword Definition for Product Description Block
-    # pages 3-43 to 3-64
-    # This full table is not implemented here
-    if code == 94:   # Base Reflectivity Data Array
-
-        return {
-            'elevation_angle': struct.unpack('>h', w30)[0],     # XXX scale
-            'max_reflectivity': struct.unpack('>h', w47)[0],    # XXX scale
-            'compressed': struct.unpack('>h', w51)[0],
-            'uncompressed_size': struct.unpack('>i', w52+w53)[0]
-        }
-    else:
-        return {}
 
 # NEXRAD Level III file structures and sizes
 # The deails on these structures are documented in:

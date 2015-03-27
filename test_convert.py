@@ -1,8 +1,9 @@
 """ Unit tests checking against files converted with Java netCDF library. """
 
-# Bugs to report upstream
-# Masking of high rain rates
-# Masked of low digital dual pol moment.
+# DIFFERENCE marks differences between data from files converted with
+# the netCDF Java library from Unidata and the data from the Python
+# nexradl3file module.  These do not appear to be bugs in the Java library.
+# BUG marks difference cause by bugs in the netCDF Java library.
 
 import os.path
 
@@ -26,10 +27,8 @@ NFILES = [
     ('sample_data/KBMX_SDUS64_NSWBMX_201501020205', 'SpectrumWidth'),
     # 32 : DHR
     ('sample_data/KBMX_SDUS54_DHRBMX_201501020205', 'DigitalHybridReflectivity'),
-    # 34 : NC1-5 XXX
-    # Java gives incorrect gate spacing and does not decode raw data.
-    # For now skip
-    #('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
+    # 34 : NC1-5
+    ('sample_data/KAMA_SDUS64_NC1AMA_201502150549', 'error'),
     # 56 : N0S-N3S
     ('sample_data/KBMX_SDUS54_N0SBMX_201501020205', 'StormMeanVelocity'),
     # 78 : N1P
@@ -46,11 +45,11 @@ NFILES = [
     ('sample_data/KBMX_SDUS54_DVLBMX_201501020205', 'DigitalIntegLiquid'),
     # 135 : EET
     ('sample_data/KBMX_SDUS74_EETBMX_201501020205', 'EnhancedEchoTop'),
-    # 138 : DSP - Works, but converted marks a gate (161, 5) as invalid whe
-    # the value is in fact valid XXX
-    #('sample_data/KBMX_SDUS54_DSPBMX_201501020205', 'DigitalPrecip'),
-    # 159 : N0X-N3X, NAC, NAB
+    # 138 : DSP
+    ('sample_data/KBMX_SDUS54_DSPBMX_201501020205', 'DigitalPrecip'),
+    # 159 : N0X-N3X, NAX, NBX
     ('sample_data/KBMX_SDUS84_N0XBMX_201501020205', 'DifferentialReflectivity'),
+    # 161 : N0C-N3C, NAC, NBC
     ('sample_data/KBMX_SDUS84_N0CBMX_201501020205', 'CorrelationCoefficient'),
     # 163 : N0K-N3L, NAK, NBK
     ('sample_data/KBMX_SDUS84_N0KBMX_201501020205', 'DifferentialPhase'),
@@ -199,21 +198,22 @@ def check_pair(n3file, field):
     ncfile = n3file + '.nc'
     dset = netCDF4.Dataset(ncfile)
     nfile = nexradl3file.NexradLevel3File(n3file)
+    msg_code = nfile.msg_header['code']
 
     # elevation
-    check_elevation.description = 'check_elevation'
     check_elevation(nfile, dset)
 
     # azimuth
-    check_azimuth.description = 'check_azimuth'
     check_azimuth(nfile, dset)
 
     # gate
-    check_gate.description = 'check_gate'
-    check_gate(nfile, dset)
+    if field.startswith('error'):
+        pass
+        # DIFFERENT: Java converter sets message code 34 range to all zeros
+    else:
+        check_gate(nfile, dset)
 
     # latitude, longitude
-    check_location.description = 'check_location'
     check_location(nfile, dset)
 
     # altitude
@@ -225,18 +225,48 @@ def check_pair(n3file, field):
     # we do not want to repoduct this.
 
     # raw field data
-    # BaseReflectivityDR_RAW
-    check_raw.description = 'check_raw'
     check_raw(nfile, dset, field + '_RAW')
 
     # raw field data
-    # BaseReflectivityDR_RAW
-    check_data.description = 'check_data'
-    check_data(nfile, dset, field)
+    if field.startswith('error'):
+        # DIFFERENCE: Java library does not decode the message code 34 data
+        pass
+    else:
+        data = nfile.get_data()
+        if msg_code == 138:
+            # BUG: Java library treats raw data as signed 8-bit integer and
+            # masks out points corrsponding to negative values. The raw data
+            # should be treated as a unsigned 8-bit integer.
+            # Msg 138, see page 3-37.
+            data[nfile.raw_data.view('int8') < 0] = np.ma.masked
+        elif msg_code in [159, 161, 163]:
+            # BUG : Java library masks the lowest valid value for polarization
+            # variable by interpreting a raw value equal to 2 as a mask rather
+            # than a valid value.
+            # Msg 159, 161, 163, see table on page 3-36.
+            data[nfile.raw_data == 2] = np.ma.masked
+        elif msg_code in [170, 172, 173, 174, 175]:
+            # BUG : Java library masks the lowest valid value for precipitation
+            # accumulation varaible # by interpreting a raw value equal to 1
+            # as a mask rather than a valid value.
+            # Msg 170, 172, 173, 174, 175, see table on page 3-36.
+            data.mask[nfile.raw_data == 1] = True
+        rtol=1e-5
+        atol=1e-8
+        # DIFFERENCE : Precipitation acculations are slightly difference
+        # when converted with Python vs. the Java library.  This is likely due
+        # to floating point round off errors although them seem larger than
+        # expected.
+        if msg_code in [170, 174, 175]:
+            atol=0.002
+        elif msg_code in [173]:
+            atol=0.002
+            rtol=0.008
+        check_data(data, dset, field, atol=atol, rtol=rtol)
+        #check_data(data, dset, field, atol=0.002, rtol=0.008)
 
     # global attributes
     # time_coverage_start, time_coverage_end
-    check_time.description = 'check_time'
     check_time(nfile, dset)
 
 
@@ -271,11 +301,10 @@ def check_raw(nfile, dset, field):
     np.allclose(nfile.raw_data, var.astype('u1'))
 
 
-def check_data(nfile, dset, field):
+def check_data(data, dset, field, atol, rtol):
     var = dset.variables[field][:]
     mvar = np.ma.masked_invalid(var)
-    data = nfile.get_data()
-    assert np.ma.allclose(mvar, data, atol=0.002, rtol=0.008)
+    assert np.ma.allclose(mvar, data, atol=atol, rtol=rtol)
     assert np.all(np.ma.getmaskarray(mvar) == np.ma.getmaskarray(data))
 
 
