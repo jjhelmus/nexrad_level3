@@ -4,11 +4,17 @@ import netCDF4
 
 import nexrad_level3
 
+
+def test_int16_to_float16():
+
+    assert abs(nexrad_level3._int16_to_float16(0x5BB4) - 123.25) <= 0.001
+    assert abs(nexrad_level3._int16_to_float16(0) - 0.0) <= 0.001
+
 def test_message_19_file():
     n3file = 'current_files/KBMX_SDUS54_N0RBMX_201501020205'
     ncfile = 'current_files/KBMX_SDUS54_N0RBMX_201501020205.nc'
     dset = netCDF4.Dataset(ncfile)
-    nfile = nexrad_level3.NexradLevel3File(n3file)
+    nfile = nexrad_level3.NEXRADLevel3File(n3file)
 
     # elevation
     check_elevation.description = 'check_elevation'
@@ -56,7 +62,7 @@ def test_message_94_file():
     n3file = 'current_files/KBMX_SDUS54_N0QBMX_201501020205'
     ncfile = 'current_files/KBMX_SDUS54_N0QBMX_201501020205.nc'
     dset = netCDF4.Dataset(ncfile)
-    nfile = nexrad_level3.NexradLevel3File(n3file)
+    nfile = nexrad_level3.NEXRADLevel3File(n3file)
 
     # elevation
     check_elevation.description = 'check_elevation'

@@ -1,13 +1,89 @@
-""" Module for reading data from NEXRAD Level 3 files. """
+"""
+pyart.io.nexrad_level3
+======================
+
+Class for reading data from NEXRAD Level 3 files.
+
+.. autosummary::
+    :toctree: generated/
+    :template: dev_template.rst
+
+    NEXRADLevel3File
+
+.. autosummary::
+    :toctree: generated/
+
+    nexrad_level3_message_code
+    _datetime_from_mdate_mtime
+    _structure_size
+    _unpack_from_buf
+    _unpack_structure
+    _int16_to_float16
+
+
+"""
+
+# This file is part of the Py-ART, the Python ARM Radar Toolkit
+# https://github.com/ARM-DOE/pyart
+
+# Care has been taken to keep this file free from extraneous dependancies
+# so that it can be used by other projects with no/minimal modification.
+
+# Please feel free to use this file in other project provided the license
+# below is followed.  Keeping the above comment lines would also be helpful
+# to direct other back to the Py-ART project and the source of this file.
+
+
+LICENSE = """
+Copyright (c) 2013, UChicago Argonne, LLC
+All rights reserved.
+
+Copyright 2013 UChicago Argonne, LLC. This software was produced under U.S.
+Government contract DE-AC02-06CH11357 for Argonne National Laboratory (ANL),
+which is operated by UChicago Argonne, LLC for the U.S. Department of Energy.
+The U.S. Government has rights to use, reproduce, and distribute this
+software. NEITHER THE GOVERNMENT NOR UCHICAGO ARGONNE, LLC MAKES ANY
+WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE USE OF THIS
+SOFTWARE. If software is modified to produce derivative works, such modified
+software should be clearly marked, so as not to confuse it with the version
+available from ANL.
+
+Additionally, redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the following conditions
+are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+
+    * Neither the name of UChicago Argonne, LLC, Argonne National
+      Laboratory, ANL, the U.S. Government, nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY UCHICAGO ARGONNE, LLC AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL UCHICAGO ARGONNE, LLC OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
 
 import bz2
-import datetime
 import struct
+from datetime import datetime, timedelta
 
 import numpy as np
 
 
-class NexradLevel3File(object):
+class NEXRADLevel3File(object):
     """
     A Class for accessing data in NEXRAD Level III (3) files.
 
@@ -127,8 +203,8 @@ class NexradLevel3File(object):
 
     def get_volume_start_datetime(self):
         """ Return a datetime of the start of the radar volume. """
-        return datetime_from_mdate_mtime(self.prod_descr['vol_scan_date'],
-                                         self.prod_descr['vol_scan_time'])
+        return _datetime_from_mdate_mtime(self.prod_descr['vol_scan_date'],
+                                          self.prod_descr['vol_scan_time'])
 
     def get_data(self):
         """ Return an masked array containing the field data. """
@@ -171,17 +247,15 @@ class NexradLevel3File(object):
             # Corresponds to classifications in table on page 3-37
             mdata = np.ma.masked_equal(self.raw_data, 0)
 
-        elif msg_code in [34]:
-            # There does not seem to be any discussion on what this product
-            # contains.
-            mdata = np.ma.array(self.raw_data.copy())
-
         elif msg_code in [135]:
             mdata = np.ma.array(self.raw_data - 2, mask=self.raw_data <= 1)
             mdata[self.raw_data >= 128] -= 128
 
         else:
-            raise NotImplementedError
+            assert msg_code in [34]
+            # There does not seem to be any discussion on what this product
+            # contains.
+            mdata = np.ma.array(self.raw_data.copy())
 
         return mdata.astype('float32')
 
@@ -226,10 +300,10 @@ class NexradLevel3File(object):
         return mdata
 
 
-def datetime_from_mdate_mtime(mdate, mtime):
+def _datetime_from_mdate_mtime(mdate, mtime):
     """ Returns a datetime for a given message date and time. """
-    epoch = datetime.datetime.utcfromtimestamp(0)
-    return epoch + datetime.timedelta(days=mdate - 1, seconds=mtime)
+    epoch = datetime.utcfromtimestamp(0)
+    return epoch + timedelta(days=mdate - 1, seconds=mtime)
 
 
 def _structure_size(structure):
@@ -248,6 +322,15 @@ def _unpack_structure(string, structure):
     fmt = '>' + ''.join([i[1] for i in structure])  # NEXRAD is big-endian
     lst = struct.unpack(fmt, string)
     return dict(zip([i[0] for i in structure], lst))
+
+
+def nexrad_level3_message_code(filename):
+    """ Return the message (product) code for a NEXRAD Level 3 file. """
+    fhl = open(filename, 'r')
+    buf = fhl.read(48)
+    fhl.close()
+    msg_header = _unpack_from_buf(buf, 30, MESSAGE_HEADER)
+    return msg_header['code']
 
 
 # NEXRAD Level III file structures, sizes, and static data

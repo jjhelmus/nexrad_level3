@@ -290,13 +290,13 @@ def test_files():
 
 
 def check_raises(n3file):
-    assert_raises(NotImplementedError, nexrad_level3.NexradLevel3File, n3file)
+    assert_raises(NotImplementedError, nexrad_level3.NEXRADLevel3File, n3file)
 
 
 def check_pair(n3file, field):
     ncfile = n3file + '.nc'
     dset = netCDF4.Dataset(ncfile)
-    nfile = nexrad_level3.NexradLevel3File(n3file)
+    nfile = nexrad_level3.NEXRADLevel3File(n3file)
     msg_code = nfile.msg_header['code']
 
     # elevation
