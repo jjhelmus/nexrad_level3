@@ -2,7 +2,7 @@
 
 # DIFFERENCE marks differences between data from files converted with
 # the netCDF Java library from Unidata and the data from the Python
-# nexradl3file module.  These do not appear to be bugs in the Java library.
+# nexrad_level3 module.  These do not appear to be bugs in the Java library.
 # BUG marks difference cause by bugs in the netCDF Java library.
 
 import os.path
@@ -11,7 +11,7 @@ import numpy as np
 from numpy.testing import assert_raises
 import netCDF4
 
-import nexradl3file
+import nexrad_level3
 
 # Test setup, these options enable/disable groups of tests to be run.
 TEST_ONE_FILE = True    # One file per supported message code
@@ -290,13 +290,13 @@ def test_files():
 
 
 def check_raises(n3file):
-    assert_raises(NotImplementedError, nexradl3file.NexradLevel3File, n3file)
+    assert_raises(NotImplementedError, nexrad_level3.NexradLevel3File, n3file)
 
 
 def check_pair(n3file, field):
     ncfile = n3file + '.nc'
     dset = netCDF4.Dataset(ncfile)
-    nfile = nexradl3file.NexradLevel3File(n3file)
+    nfile = nexrad_level3.NexradLevel3File(n3file)
     msg_code = nfile.msg_header['code']
 
     # elevation

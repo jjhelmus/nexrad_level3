@@ -2,13 +2,13 @@
 import numpy as np
 import netCDF4
 
-import nexradl3file
+import nexrad_level3
 
 def test_message_19_file():
     n3file = 'current_files/KBMX_SDUS54_N0RBMX_201501020205'
     ncfile = 'current_files/KBMX_SDUS54_N0RBMX_201501020205.nc'
     dset = netCDF4.Dataset(ncfile)
-    nfile = nexradl3file.NexradLevel3File(n3file)
+    nfile = nexrad_level3.NexradLevel3File(n3file)
 
     # elevation
     check_elevation.description = 'check_elevation'
@@ -56,7 +56,7 @@ def test_message_94_file():
     n3file = 'current_files/KBMX_SDUS54_N0QBMX_201501020205'
     ncfile = 'current_files/KBMX_SDUS54_N0QBMX_201501020205.nc'
     dset = netCDF4.Dataset(ncfile)
-    nfile = nexradl3file.NexradLevel3File(n3file)
+    nfile = nexrad_level3.NexradLevel3File(n3file)
 
     # elevation
     check_elevation.description = 'check_elevation'
